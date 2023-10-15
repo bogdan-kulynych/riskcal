@@ -1,0 +1,21 @@
+[tool.poetry]
+name = "riskcal"
+version = "0.1.0"
+description = "Library for calibrating differentially private algorithms to privacy risk"
+authors = ["Bogdan Kulynych <bogdan@kulyny.ch>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = ">=3.9,<3.13"
+scipy = "^1.11.3"
+
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.4.2"
+torch = "==2.0.0"
+opacus = "^1.4.0"
+jupyter = "^1.0.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
