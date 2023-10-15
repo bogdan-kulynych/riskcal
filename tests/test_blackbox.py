@@ -173,13 +173,13 @@ def test_err_rates_calibration_correctness(
     epsilon = acct_obj.get_epsilon(delta=calibrated_delta)
     expected_epsilon = calibration_result.calibration_epsilon
 
-    print(f"\nCHECK 1: {alpha=}, {beta=} // {epsilon=}, {expected_epsilon=}")
+    print(f"CHECK 1: {alpha=}, {beta=} // {epsilon=}, {expected_epsilon=}")
     assert epsilon == pytest.approx(expected_epsilon, abs=eps_error)
 
     obtained_beta = riskcal.utils.get_err_rate_for_epsilon_delta(
         epsilon, calibrated_delta, alpha
     )
-    print(f"\nCHECK 2: {alpha=}, {beta=} // {epsilon=}, {obtained_beta=}")
+    print(f"CHECK 2: {alpha=}, {beta=} // {epsilon=}, {obtained_beta=}")
     assert beta == pytest.approx(obtained_beta, abs=delta_error)
 
 
