@@ -205,7 +205,7 @@ def find_noise_multiplier_for_err_rates(
     :param beta: Adversary's FNR
     :param sample_rate: Probability of a record being in batch for Poisson sampling
     :param num_steps: Number of optimisation steps
-    :param float delta_error: Error for delta grid discretization
+    :param float delta_error: Error allowed for delta used for calibration
     :param float eps_error: Error allowed for final epsilon
     :param float mu_max: Maximum value of noise multiplier of the search
     :param str method: Optimization method. One of ['brent', 'grid_search']
@@ -229,7 +229,7 @@ def find_noise_multiplier_for_err_rates(
     )
 
     if max_delta < delta_error:
-        raise ValueError("Grid resolution too low. Try increasing delta_error.")
+        raise ValueError(f"{delta_error=} too low for the requested error rates.")
 
     if method == "brent":
         opt_result = minimize_scalar(
