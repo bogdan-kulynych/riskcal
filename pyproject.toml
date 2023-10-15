@@ -15,6 +15,11 @@ pytest = "^7.4.2"
 torch = "==2.0.0"
 opacus = "^1.4.0"
 jupyter = "^1.0.0"
+jupytext = "^1.15.2"
+pandas = "^2.1.1"
+seaborn = "^0.13.0"
+tqdm = "^4.66.1"
+diffprivlib = "^0.6.3"
 
 [build-system]
 requires = ["poetry-core"]

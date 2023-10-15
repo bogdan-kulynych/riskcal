@@ -1,7 +1,8 @@
+from dataclasses import dataclass
 import warnings
 
 import numpy as np
-from scipy.optimize import root_scalar
+from scipy.optimize import root_scalar, minimize_scalar
 
 from . import utils
 
@@ -35,7 +36,7 @@ def find_noise_multiplier_for_epsilon_delta(
         for step in range(num_steps):
             acc.step(noise_multiplier=mu, sample_rate=sample_rate)
 
-        return acc.get_epsilon(delta=delta)
+        return acc.get_epsilon(delta=delta, **accountant_kwargs)
 
     mu_R = 1.0
     eps_R = float("inf")
@@ -80,7 +81,7 @@ def find_noise_multiplier_for_advantage(
     sample_rate: float,
     num_steps: float,
     eps_error=0.01,
-    nu_max=100.0,
+    mu_max=100.0,
     **accountant_kwargs,
 ):
     """
@@ -101,53 +102,87 @@ def find_noise_multiplier_for_advantage(
         epsilon=0.0,
         delta=advantage,
         eps_error=eps_error,
-        mu_max=nu_max,
+        mu_max=mu_max,
         **accountant_kwargs,
     )
 
 
-def _find_noise_profile(
-    accountant,
-    alpha: float,
-    beta: float,
-    sample_rate: float,
-    num_steps: float,
-    delta_error=0.05,
-    eps_error=0.01,
-    nu_max=100.0,
-    **accountant_kwargs,
-):
-    if alpha + beta >= 1:
-        raise ValueError(
-            f"The guarantees are vacuous when alpha + beta >= 1. Got {alpha=}, {beta=}"
-        )
-    max_delta = 1 - alpha - beta
+class _ErrRatesAccountant:
+    def __init__(
+        self,
+        accountant,
+        alpha,
+        beta,
+        sample_rate,
+        num_steps,
+        eps_error,
+        mu_max=100.0,
+        **accountant_kwargs,
+    ):
+        self.accountant = accountant
+        self.alpha = alpha
+        self.beta = beta
+        self.sample_rate = sample_rate
+        self.num_steps = num_steps
+        self.eps_error = eps_error
+        self.mu_max = mu_max
+        self.accountant_kwargs = accountant_kwargs
 
-    delta_vals = np.linspace(
-        delta_error, max_delta, int((max_delta - delta_error) / delta_error)
-    )
-    noise_vals = np.array([np.inf] * len(delta_vals))
-    for i, delta in enumerate(delta_vals):
-        epsilon = utils.get_epsilon_for_err_rates(delta, alpha, beta)
+    def find_noise_multiplier(self, delta):
+        epsilon = utils.get_epsilon_for_err_rates(delta, self.alpha, self.beta)
         try:
-            noise_candidate = find_noise_multiplier_for_epsilon_delta(
-                accountant=accountant,
-                sample_rate=sample_rate,
-                num_steps=num_steps,
+            mu = find_noise_multiplier_for_epsilon_delta(
                 epsilon=epsilon,
                 delta=delta,
-                eps_error=eps_error,
-                mu_max=nu_max,
+                accountant=self.accountant,
+                sample_rate=self.sample_rate,
+                num_steps=self.num_steps,
+                eps_error=self.eps_error,
+                mu_max=self.mu_max,
+                **self.accountant_kwargs,
             )
-            noise_vals[i] = noise_candidate
-            # print(f"{epsilon=:.3f} {delta=:.3f} {noise_candidate=:.3f}")
+            return mu
+
         except RuntimeError as e:
             warnings.warn(
                 f"Error occured on grid search w/ {epsilon=:.4f} {delta=:.4f}"
             )
             warnings.warn(e)
+            return np.inf
+
+
+def _find_noise_profile(
+    err_rates_acct_obj: _ErrRatesAccountant,
+    max_delta: float,
+    sample_rate: float,
+    num_steps: float,
+    delta_error=0.01,
+    eps_error=0.001,
+    mu_max=100.0,
+    **accountant_kwargs,
+):
+    delta_vals = np.linspace(
+        delta_error, max_delta, int((max_delta - delta_error) / delta_error)
+    )
+    if len(delta_vals) == 0:
+        raise ValueError("Grid resolution too low. Try increasing delta_error.")
+
+    noise_vals = np.array([np.inf] * len(delta_vals))
+    for i, delta in enumerate(delta_vals):
+        noise_vals[i] = err_rates_acct_obj.find_noise_multiplier(delta)
 
     return delta_vals, noise_vals
+
+
+@dataclass
+class CalibrationResult:
+    """
+    Result of generic calibration.
+    """
+
+    noise_multiplier: float
+    calibration_epsilon: float
+    calibration_delta: float
 
 
 def find_noise_multiplier_for_err_rates(
@@ -158,7 +193,8 @@ def find_noise_multiplier_for_err_rates(
     num_steps: float,
     delta_error=0.01,
     eps_error=0.001,
-    nu_max=100.0,
+    mu_max=100.0,
+    method="brent",
     **accountant_kwargs,
 ):
     """
@@ -172,17 +208,58 @@ def find_noise_multiplier_for_err_rates(
     :param float delta_error: Error for delta grid discretization
     :param float eps_error: Error allowed for final epsilon
     :param float mu_max: Maximum value of noise multiplier of the search
+    :param str method: Optimization method. One of ['brent', 'grid_search']
     :param accountant_kwargs: Parameters passed to the accountant's `get_epsilon`
     """
-    _, noise_vals = _find_noise_profile(
+    if alpha + beta >= 1:
+        raise ValueError(
+            f"The guarantees are vacuous when alpha + beta >= 1. Got {alpha=}, {beta=}"
+        )
+
+    max_delta = 1 - alpha - beta
+    err_rates_acct_obj = _ErrRatesAccountant(
         accountant=accountant,
         alpha=alpha,
         beta=beta,
         sample_rate=sample_rate,
         num_steps=num_steps,
-        delta_error=delta_error,
         eps_error=eps_error,
-        nu_max=nu_max,
+        mu_max=mu_max,
+        **accountant_kwargs,
     )
-    best_noise = min(noise_vals)
-    return best_noise
+
+    if max_delta < delta_error:
+        raise ValueError("Grid resolution too low. Try increasing delta_error.")
+
+    if method == "brent":
+        opt_result = minimize_scalar(
+            err_rates_acct_obj.find_noise_multiplier,
+            bounds=[delta_error, max_delta],
+            options=dict(xatol=delta_error),
+        )
+        if not opt_result.success:
+            raise RuntimeError(f"Optimization failed: {opt_result.message}")
+        calibration_delta = opt_result.x
+        noise_multiplier = opt_result.fun
+
+    elif method == "grid_search":
+        delta_vals, noise_vals = _find_noise_profile(
+            err_rates_acct_obj=err_rates_acct_obj,
+            max_delta=max_delta,
+            sample_rate=sample_rate,
+            num_steps=num_steps,
+            delta_error=delta_error,
+            eps_error=eps_error,
+            mu_max=mu_max,
+        )
+
+        noise_multiplier = noise_vals.min()
+        calibration_delta = delta_vals[np.argmin(noise_vals)]
+
+    return CalibrationResult(
+        noise_multiplier=noise_multiplier,
+        calibration_delta=calibration_delta,
+        calibration_epsilon=utils.get_epsilon_for_err_rates(
+            calibration_delta, alpha, beta
+        ),
+    )
