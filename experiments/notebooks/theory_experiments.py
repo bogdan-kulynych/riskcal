@@ -171,6 +171,7 @@ eps_error = 1e-7
 tpr_vals = np.linspace(0.1, 0.5, 10)
 tnr_vals = np.array([0.9, 0.95, 0.99])
 results_gm_delta_calibration = []
+results_gm_delta_calibration_diffs = []
 
 for tpr, tnr in tqdm.tqdm(list(itertools.product(tpr_vals, tnr_vals))):
     fpr = 1 - tnr
@@ -243,25 +244,37 @@ for tpr, tnr in tqdm.tqdm(list(itertools.product(tpr_vals, tnr_vals))):
     )
 
     # Generic risk calibration for error rates.
-    best_noise = np.sqrt(1 / ( norm.ppf(1-fpr) - norm.ppf(fnr) ))
+    exact_noise = 1 / ( norm.ppf(1-fpr) - norm.ppf(fnr) )
     
     acct_obj = accountant()
     for step in range(num_steps):
         acct_obj.step(
-            noise_multiplier=best_noise,
+            noise_multiplier=exact_noise,
             sample_rate=sample_rate,
         )
 
-    best_epsilon = acct_obj.get_epsilon(delta=classical_delta)
+    exact_epsilon = acct_obj.get_epsilon(delta=classical_delta)
     results_gm_delta_calibration.append(
         dict(
             tpr=tpr,
             tnr=tnr,
             fnr=fnr,
             fpr=fpr,
-            noise=best_noise,
-            epsilon=best_epsilon,
+            noise=exact_noise,
+            epsilon=exact_epsilon,
             method="gaussian"
+        )
+    )
+    results_gm_delta_calibration_diffs.append(
+        dict(
+            tpr=tpr,
+            tnr=tnr,
+            fnr=fnr,
+            fpr=fpr,
+            generic_noise=best_noise,
+            exact_noise=exact_noise,
+            noise_ratio=best_noise / exact_noise,
+            noise_diff=best_noise - exact_noise
         )
     )
 
@@ -293,6 +306,32 @@ sns.relplot(
 )
 
 plt.savefig("../images/gm_err_rates_calibration.pdf", bbox_inches='tight')
+
+# %%
+results_gm_delta_calibration_diffs
+
+# %%
+sns.relplot(
+    data=(
+        pd.DataFrame(results_gm_delta_calibration_diffs)
+        .assign(fpr=lambda df: df.fpr.round(2))
+        .rename(
+            columns={
+                "fpr": "FPR",
+                "tpr": "TPR (attack sensitivity)",
+                "noise_ratio": "Generic/exact noise ratio",
+                "noise_diff": "Generic/exact noise diff",
+            }
+        )
+    ),
+    x="TPR (attack sensitivity)",
+    y="Generic/exact noise diff",
+    col="FPR",
+    kind="line",
+    # facet_kws={'sharey': False, 'sharex': True},
+)
+
+plt.savefig("../images/gm_err_rates_calibration_diff.pdf", bbox_inches='tight')
 
 # %% [markdown]
 # ## DP-SGD
