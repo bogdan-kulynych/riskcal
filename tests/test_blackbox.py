@@ -4,6 +4,8 @@ import itertools
 
 import riskcal
 from opacus import accountants
+from scipy.stats import norm
+from scipy.optimize import root_scalar
 
 
 @pytest.fixture
@@ -195,7 +197,7 @@ def test_err_rates_calibration_correctness(
     ],
 )
 def test_err_rates_calibration_improvement(accountant, epsilon, sample_rate, num_steps):
-    alpha = 0.1
+    alpha = 0.01
     delta = 1e-5
     delta_error = 0.05
     eps_error = 0.01
@@ -237,3 +239,49 @@ def test_err_rates_calibration_improvement(accountant, epsilon, sample_rate, num
         obtained_epsilon, calibrated_delta, alpha
     )
     assert beta == pytest.approx(obtained_beta, abs=delta_error)
+
+
+@pytest.mark.parametrize(
+    "beta, method",
+    [
+        (0.25, "brent"),
+        (0.25, "grid_search"),
+        (0.50, "brent"),
+        (0.50, "grid_search"),
+        (0.75, "brent"),
+        (0.75, "grid_search"),
+    ],
+)
+def test_generic_err_rates_calibration_worse_than_exact(beta, method):
+    alpha = 0.1
+    delta_error = 1e-2
+
+    class GaussianMechanismAccountant:
+        def __init__(self):
+            pass
+
+        def step(self, noise_multiplier: float, **kwargs):
+            self.noise_multiplier = noise_multiplier
+
+        def get_epsilon(self, delta):
+            def get_delta(epsilon):
+                return norm.cdf(
+                    0.5 / self.noise_multiplier - epsilon * self.noise_multiplier
+                ) - np.exp(epsilon) * norm.cdf(
+                    -0.5 / self.noise_multiplier - epsilon * self.noise_multiplier
+                )
+
+            return root_scalar(lambda epsilon: get_delta(epsilon) - delta, x0=0.0).root
+
+    calibration_result = riskcal.blackbox.find_noise_multiplier_for_err_rates(
+        GaussianMechanismAccountant,
+        alpha=alpha,
+        beta=beta,
+        sample_rate=1,
+        num_steps=1,
+        delta_error=delta_error,
+        method=method,
+    )
+
+    exact_noise_multiplier = 1 / (norm.ppf(1 - alpha) - norm.ppf(beta))
+    assert exact_noise_multiplier <= calibration_result.noise_multiplier
