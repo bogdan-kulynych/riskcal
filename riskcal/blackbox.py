@@ -49,7 +49,7 @@ def find_noise_multiplier_for_epsilon_delta(
         if mu_R > mu_max:
             raise RuntimeError(
                 "Finding a suitable noise multiplier has not converged. "
-                "Try increasing target epsilon or decreasing sampling probability."
+                "Try increasing target epsilon or decreasing sample rate."
             )
 
     mu_L = mu_R
@@ -145,7 +145,7 @@ class _ErrRatesAccountant:
 
         except RuntimeError as e:
             warnings.warn(
-                f"Error occured on grid search w/ {epsilon=:.4f} {delta=:.4f}"
+                f"Error occured in grid search w/ {epsilon=:.4f} {delta=:.4f}"
             )
             warnings.warn(e)
             return np.inf

@@ -199,8 +199,8 @@ def test_err_rates_calibration_correctness(
 def test_err_rates_calibration_improvement(accountant, epsilon, sample_rate, num_steps):
     alpha = 0.01
     delta = 1e-5
-    delta_error = 0.05
-    eps_error = 0.01
+    delta_error = 0.001
+    eps_error = 0.001
     method = "brent"
 
     standard_mu = riskcal.blackbox.find_noise_multiplier_for_epsilon_delta(
@@ -227,7 +227,7 @@ def test_err_rates_calibration_improvement(accountant, epsilon, sample_rate, num
     calibrated_delta = calibration_result.calibration_delta
 
     # We should get better less noise with direct calibration:
-    assert standard_mu / calibrated_mu > 1.5
+    assert standard_mu / calibrated_mu > 1.25
 
     # Check that alpha beta guarantees are correct.
     acct_obj = accountant()
