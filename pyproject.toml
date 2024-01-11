@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "riskcal"
 version = "0.1.0"
-description = "Library for calibrating differentially private algorithms to privacy risk"
+description = "Calibrate differentially private algorithms to operational privacy risk measures"
 authors = ["Bogdan Kulynych <bogdan@kulyny.ch>"]
 readme = "README.md"
 

@@ -85,10 +85,10 @@ def find_noise_multiplier_for_advantage(
     **accountant_kwargs,
 ):
     """
-    Find a noise multiplier that satisfies given levels of adversary's advantage.
+    Find a noise multiplier that satisfies given levels of attack advantage.
 
     :param accountant: Opacus-compatible accountant
-    :param advantage: Adversary's advantage
+    :param advantage: Attack advantage bound
     :param sample_rate: Probability of a record being in batch for Poisson sampling
     :param num_steps: Number of optimisation steps
     :param float eps_error: Error allowed for final epsilon
@@ -198,11 +198,11 @@ def find_noise_multiplier_for_err_rates(
     **accountant_kwargs,
 ):
     """
-    Find a noise multiplier that satisfies given levels of adversary's FPR/FNR rates.
+    Find a noise multiplier that limits attack FPR/FNR rates.
 
     :param accountant: Opacus-compatible accountant
-    :param alpha: Adversary's FPR
-    :param beta: Adversary's FNR
+    :param alpha: Attack FPR bound
+    :param beta: Attack FNR bound
     :param sample_rate: Probability of a record being in batch for Poisson sampling
     :param num_steps: Number of optimisation steps
     :param float delta_error: Error allowed for delta used for calibration
