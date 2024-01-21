@@ -2,7 +2,7 @@
 name = "riskcal"
 version = "0.1.0"
 description = "Calibrate differentially private algorithms to operational privacy risk measures"
-authors = ["Bogdan Kulynych <bogdan@kulyny.ch>"]
+authors = ["<anonymous>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
@@ -21,6 +21,10 @@ seaborn = "^0.13.0"
 tqdm = "^4.66.1"
 diffprivlib = "^0.6.3"
 pre-commit = "^3.5.0"
+
+
+[tool.poetry.group.experiments.dependencies]
+opacus = "^1.4.0"
 
 [build-system]
 requires = ["poetry-core"]
