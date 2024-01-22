@@ -5,7 +5,7 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.15.2
+#       jupytext_version: 1.14.0
 #   kernelspec:
 #     display_name: Python 3 (ipykernel)
 #     language: python
@@ -31,7 +31,7 @@ from opacus import accountants as opacus_acct
 
 from matplotlib import pyplot as plt
 
-sns.set(style="whitegrid", context="paper", font_scale=1.75)
+sns.set(style="whitegrid", context="paper", font_scale=2)
 
 # %%
 import riskcal
@@ -425,6 +425,7 @@ g = sns.lineplot(
     x="adv",
     y="value",
     hue="Method",
+    marker="o",
 )
 
 g.set_xlabel("Adversary's advantage")
@@ -433,7 +434,7 @@ g.set_ylabel("Noise scale")
 plt.savefig("../images/dpsgd_adv_calibration.pdf", bbox_inches='tight')
 
 # %%
-delta_error = 1e-5
+delta_error = 1e-7
 
 tpr_vals = np.linspace(0.1, 0.5, 10)
 tnr_vals = np.array([0.9, 0.95, 0.99])
@@ -536,8 +537,11 @@ sns.relplot(
     y="Noise scale",
     col="FPR",
     hue="Method",
+    marker="o",
     kind="line",
     # facet_kws={'sharey': False, 'sharex': True},
 )
+
+plt.xlim(0.05, 0.55)
 
 plt.savefig("../images/dpsgd_err_rates_calibration.pdf", bbox_inches='tight')
