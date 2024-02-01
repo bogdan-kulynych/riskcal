@@ -15,6 +15,7 @@
 # %%
 # %load_ext autoreload
 # %autoreload 2
+# %matplotlib inline
 
 # %%
 import itertools
@@ -29,9 +30,22 @@ from tqdm import autonotebook as tqdm
 
 from opacus import accountants as opacus_acct
 
+import matplotlib as mpl
 from matplotlib import pyplot as plt
 
-sns.set(style="whitegrid", context="paper", font_scale=2, rc={"lines.linewidth": 2.5, "lines.markersize": 10})
+from matplotlib.backends.backend_pgf import FigureCanvasPgf
+mpl.backend_bases.register_backend('pdf', FigureCanvasPgf)
+
+sns.set(
+    style="whitegrid", context="paper", font_scale=2,
+    rc={"lines.linewidth": 2.5, "lines.markersize": 6, "lines.markeredgewidth": 0.0}
+)
+plt.rcParams.update({
+    "font.family": "sans-serif",  # use serif/main font for text elements
+    "font.serif": "Helvetica",
+    "text.usetex": True,     # use inline math for ticks
+    "pgf.rcfonts": False     # don't setup fonts from rc parameters
+})
 
 # %%
 import riskcal
@@ -109,6 +123,8 @@ for adv_val in tqdm.tqdm(list(adv_vals)):
 )
 
 # %%
+plt.figure()
+
 g = sns.lineplot(
     data=(
         pd.DataFrame(results_adv_calibration)
@@ -122,7 +138,7 @@ g = sns.lineplot(
         )
         .replace({
             "classical_noise": "Standard calibration",
-            "best_noise": "Advantage calibration",
+            "best_noise": "Advantage calibration\hspace{2em}",
         })
     ),
     x="adv",
@@ -131,10 +147,11 @@ g = sns.lineplot(
     marker="o",
 )
 
-g.set_xlabel("Attack advantage")
-g.set_ylabel("Noise scale")
+g.set_xlabel(r"Attack advantage, $\eta$")
+g.set_ylabel(r"Noise scale, $\sigma$")
 
-plt.savefig("../images/dpsgd_adv_calibration.pdf", bbox_inches='tight')
+# plt.savefig("../images/dpsgd_adv_calibration.pdf", bbox_inches='tight')
+plt.savefig("../images/dpsgd_adv_calibration.pgf", bbox_inches='tight', format="pgf")
 
 # %%
 tpr_vals = np.linspace(0.1, 0.5, 10)
@@ -212,6 +229,8 @@ for tpr, tnr in tqdm.tqdm(list(itertools.product(tpr_vals, tnr_vals))):
 )
 
 # %%
+plt.figure()
+
 sns.relplot(
     data=(
         pd.DataFrame(results_delta_calibration)
@@ -227,16 +246,16 @@ sns.relplot(
         })
         .rename(
             columns={
-                "fpr": "Attack FPR",
-                "tpr": "Attack TPR",
-                "value": "Noise scale",
+                "fpr": r"Attack FPR, $\alpha$",
+                "tpr": r"Attack TPR, $1 - \beta$",
+                "value": "Noise scale, $\sigma$",
                 "variable": "Method"
             }
         )
     ),
-    x="Attack TPR",
-    y="Noise scale",
-    col="Attack FPR",
+    x=r"Attack TPR, $1 - \beta$",
+    y="Noise scale, $\sigma$",
+    col=r"Attack FPR, $\alpha$",
     hue="Method",
     marker="o",
     kind="line",
@@ -246,5 +265,6 @@ sns.relplot(
 plt.xlim(0.05, 0.55)
 
 plt.savefig("../images/dpsgd_err_rates_calibration.pdf", bbox_inches='tight')
+plt.savefig("../images/dpsgd_err_rates_calibration.pgf", bbox_inches='tight', format="pgf")
 
 # %%

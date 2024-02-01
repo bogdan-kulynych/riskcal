@@ -14,7 +14,6 @@
 
 # %%
 # %load_ext autoreload
-
 # %autoreload 2
 
 # %%
@@ -31,9 +30,22 @@ from tqdm import autonotebook as tqdm
 
 from opacus import accountants as opacus_acct
 
+import matplotlib as mpl
 from matplotlib import pyplot as plt
 
-sns.set(style="whitegrid", context="paper", font_scale=2, rc={"lines.linewidth": 2.5, "lines.markersize": 10})
+from matplotlib.backends.backend_pgf import FigureCanvasPgf
+mpl.backend_bases.register_backend('pdf', FigureCanvasPgf)
+
+sns.set(
+    style="whitegrid", context="paper", font_scale=2,
+    rc={"lines.linewidth": 2.5, "lines.markersize": 6, "lines.markeredgewidth": 0.0}
+)
+plt.rcParams.update({
+    "font.family": "sans-serif",  # use serif/main font for text elements
+    "font.serif": "Helvetica",
+    "text.usetex": True,     # use inline math for ticks
+    "pgf.rcfonts": False     # don't setup fonts from rc parameters
+})
 
 # %%
 import riskcal
@@ -137,8 +149,6 @@ for i, row in tqdm.tqdm(list(exp_metadata.iterrows())):
         )
 
 # %%
-
-# %%
 g = sns.relplot(
     data=(
         pd.DataFrame(plot_data)
@@ -153,7 +163,7 @@ g = sns.relplot(
         )
         .rename(
             columns={
-                "alpha": "α",
+                "alpha": r"$\alpha$",
                 "test_acc": "Accuracy",
                 "sigma": "Noise scale",
             }
@@ -163,13 +173,16 @@ g = sns.relplot(
     x="Attack risk",
     hue="Method",
     hue_order=["Standard calibration", "Attack risk calibration"],
-    col="α",
+    col=r"$\alpha$",
     kind="line",
     marker="o",
 )
 
 plt.xlim(0, 1)
-plt.savefig("../images/cifar10_err_rates_calibration.pdf", bbox_inches="tight")
+# plt.savefig("../images/cifar10_err_rates_calibration.pdf", bbox_inches="tight")
+plt.savefig("../images/cifar10_err_rates_calibration.pgf", bbox_inches="tight", format="pgf")
 
 # %%
 pd.DataFrame(plot_data)
+
+# %%
