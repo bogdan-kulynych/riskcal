@@ -5,7 +5,7 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.14.0
+#       jupytext_version: 1.16.1
 #   kernelspec:
 #     display_name: Python 3 (ipykernel)
 #     language: python
@@ -31,7 +31,7 @@ from opacus import accountants as opacus_acct
 
 from matplotlib import pyplot as plt
 
-sns.set(style="whitegrid", context="paper", font_scale=2)
+sns.set(style="whitegrid", context="paper", font_scale=2, rc={"lines.linewidth": 2.5, "lines.markersize": 10})
 
 # %%
 import riskcal
@@ -46,10 +46,10 @@ classical_delta = 1e-5
 accountant = opacus_acct.rdp.RDPAccountant
 
 delta_error = 1e-6
-eps_error = 0.001
+eps_error = 1e-6
 
 # %%
-adv_vals = np.linspace(0.1, 0.5, 20)
+adv_vals = np.linspace(0.1, 0.5, 10)
 results_adv_calibration = []
 
 
@@ -121,7 +121,7 @@ g = sns.lineplot(
             }
         )
         .replace({
-            "classical_noise": "Standard CF calibration",
+            "classical_noise": "Standard calibration",
             "best_noise": "Advantage calibration",
         })
     ),
@@ -131,7 +131,7 @@ g = sns.lineplot(
     marker="o",
 )
 
-g.set_xlabel("Adversary's advantage")
+g.set_xlabel("Attack advantage")
 g.set_ylabel("Noise scale")
 
 plt.savefig("../images/dpsgd_adv_calibration.pdf", bbox_inches='tight')
@@ -221,22 +221,22 @@ sns.relplot(
         )
         .assign(fpr=lambda df: df.fpr.round(2))
         .replace({
-            "classical_noise": "Standard CF calibration",
+            "classical_noise": "Standard calibration",
             "best_noise": "TPR/FPR calibration",
 
         })
         .rename(
             columns={
-                "fpr": "FPR",
-                "tpr": "TPR (attack sensitivity)",
+                "fpr": "Attack FPR",
+                "tpr": "Attack TPR",
                 "value": "Noise scale",
                 "variable": "Method"
             }
         )
     ),
-    x="TPR (attack sensitivity)",
+    x="Attack TPR",
     y="Noise scale",
-    col="FPR",
+    col="Attack FPR",
     hue="Method",
     marker="o",
     kind="line",

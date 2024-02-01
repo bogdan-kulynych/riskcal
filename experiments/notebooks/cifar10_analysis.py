@@ -5,7 +5,7 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.14.0
+#       jupytext_version: 1.16.1
 #   kernelspec:
 #     display_name: Python 3 (ipykernel)
 #     language: python
@@ -33,7 +33,7 @@ from opacus import accountants as opacus_acct
 
 from matplotlib import pyplot as plt
 
-sns.set(style="whitegrid", context="paper", font_scale=2)
+sns.set(style="whitegrid", context="paper", font_scale=2, rc={"lines.linewidth": 2.5, "lines.markersize": 10})
 
 # %%
 import riskcal
@@ -137,6 +137,8 @@ for i, row in tqdm.tqdm(list(exp_metadata.iterrows())):
         )
 
 # %%
+
+# %%
 g = sns.relplot(
     data=(
         pd.DataFrame(plot_data)
@@ -144,24 +146,24 @@ g = sns.relplot(
             id_vars=["alpha", "test_acc", "sigma"],
             value_vars=["cal_tpr", "cf_tpr"],
             var_name="Method",
-            value_name="TPR (attack sensitivity)",
+            value_name="Attack risk",
         )
         .replace(
-            {"cal_tpr": "TPR/FPR calibration", "cf_tpr": "Standard CF calibration"}
+            {"cal_tpr": "Attack risk calibration", "cf_tpr": "Standard calibration"}
         )
         .rename(
             columns={
-                "alpha": "FPR",
-                "test_acc": "Test acc.",
+                "alpha": "α",
+                "test_acc": "Accuracy",
                 "sigma": "Noise scale",
             }
         )
     ),
-    y="Test acc.",
-    x="TPR (attack sensitivity)",
+    y="Accuracy",
+    x="Attack risk",
     hue="Method",
-    hue_order=["Standard CF calibration", "TPR/FPR calibration"],
-    col="FPR",
+    hue_order=["Standard calibration", "Attack risk calibration"],
+    col="α",
     kind="line",
     marker="o",
 )
