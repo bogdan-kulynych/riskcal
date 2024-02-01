@@ -13,7 +13,7 @@ def find_noise_multiplier_for_epsilon_delta(
     num_steps: int,
     epsilon: float,
     delta: float,
-    eps_error: float = 0.01,
+    eps_error: float = 0.001,
     mu_max: float = 100.0,
     **accountant_kwargs,
 ) -> float:
@@ -70,7 +70,7 @@ def find_noise_multiplier_for_epsilon_delta(
         bracket = [mu_guess - mu_err, mu_guess + mu_err]
         eps_up = compute_epsilon(mu_guess - mu_err)
         eps_low = compute_epsilon(mu_guess + mu_err)
-        has_converged = (eps_up - eps_low) < 2 * eps_error
+        has_converged = (eps_up - eps_low) < eps_error
     assert compute_epsilon(bracket[1]) < epsilon + eps_error
     return bracket[1]
 
@@ -80,7 +80,7 @@ def find_noise_multiplier_for_advantage(
     advantage: float,
     sample_rate: float,
     num_steps: float,
-    eps_error=0.01,
+    eps_error=0.001,
     mu_max=100.0,
     **accountant_kwargs,
 ):
