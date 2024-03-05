@@ -10,7 +10,7 @@
 
 The library provides tools for calibrating the noise scale in (epsilon, delta)-DP mechanisms to one
 of the two notions of operational attack risk (attack accuracy/advantage, or attack TPR and FPR) instead of the
-(epsilon, delta) parameters.
+(epsilon, delta) parameters. This enables to reduce the noise scale at the same level of targeted attack risk.
 
 
 ### Using the Library
