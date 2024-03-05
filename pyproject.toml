@@ -2,7 +2,7 @@
 name = "riskcal"
 version = "0.1.0"
 description = "Calibrate differentially private algorithms to operational privacy risk measures"
-authors = ["John Doe <anonymous@anonymous.com>"]
+authors = ["Bogdan Kulynych <bogdan@kulyny.ch>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
@@ -27,6 +27,10 @@ jupyter = "^1.0.0"
 jupytext = "^1.15.2"
 tqdm = "^4.66.1"
 torch = "==2.0.0"
+
+[tool.pytest.ini_options]
+addopts = ["-v"]
+testpaths = ["tests"]
 
 [build-system]
 requires = ["poetry-core"]
