@@ -3,13 +3,12 @@ import warnings
 
 import numpy as np
 from scipy.optimize import root_scalar, minimize_scalar
-from opacus.accountants.accountant import IAccountant
 
 from . import utils
 
 
 def find_noise_multiplier_for_epsilon_delta(
-    accountant: IAccountant,
+    accountant: "opacus.accountants.accountant.IAccountant",
     sample_rate: float,
     num_steps: int,
     epsilon: float,
@@ -77,7 +76,7 @@ def find_noise_multiplier_for_epsilon_delta(
 
 
 def find_noise_multiplier_for_advantage(
-    accountant: IAccountant,
+    accountant: "opacus.accountants.accountant.IAccountant",
     advantage: float,
     sample_rate: float,
     num_steps: float,
@@ -187,7 +186,7 @@ class CalibrationResult:
 
 
 def find_noise_multiplier_for_err_rates(
-    accountant: IAccountant,
+    accountant: "opacus.accountants.accountant.IAccountant",
     alpha: float,
     beta: float,
     sample_rate: float,
