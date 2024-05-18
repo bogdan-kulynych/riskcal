@@ -1,5 +1,4 @@
 import numpy as np
-import matplotlib.pyplot as plt
 from dp_accounting.pld import privacy_loss_distribution
 from scipy.optimize import root_scalar
 
