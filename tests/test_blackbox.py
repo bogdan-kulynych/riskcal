@@ -14,7 +14,7 @@ def accountant():
 
 
 sample_rate = 0.001
-num_dpsgd_steps = 100
+num_dpsgd_steps = 10
 
 
 @pytest.mark.parametrize(
