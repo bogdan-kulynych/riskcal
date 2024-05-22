@@ -1,3 +1,4 @@
+from typing import Union
 import numpy as np
 from dp_accounting.pld import privacy_loss_distribution
 from scipy.optimize import root_scalar
@@ -37,7 +38,7 @@ def _get_dpsgd_composed_plrv_pmfs(
 
 
 def get_beta(
-    alpha: float,
+    alpha: Union[float, np.ndarray],
     noise_multiplier: float,
     sample_rate: float,
     num_steps: int,
@@ -47,7 +48,7 @@ def get_beta(
     Find FNR for a given FPR in DP-SGD.
 
     Arguments:
-        alpha: Target FPR
+        alpha: Target FPR, either a single float or a numpy array
         noise_multiplier: DP-SGD noise multiplier
         sample_rate: Subsampled Gaussian sampling rate
         num_steps: Number of steps
