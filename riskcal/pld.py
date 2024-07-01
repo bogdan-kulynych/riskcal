@@ -5,10 +5,8 @@ import numpy as np
 from dp_accounting.pld import privacy_loss_distribution
 from scipy.optimize import root_scalar
 
-from opacus.accountants.accountant import IAccountant
 
-
-class CTDAccountant(IAccountant):
+class CTDAccountant:
     def __init__(self):
         super().__init__()
 
@@ -61,51 +59,16 @@ def _get_lower_loss_and_pmf_from_pld(pld):
     return lower_loss, pmf
 
 
-def _get_dpsgd_composed_plrv_pmfs(
-    noise_multiplier, sample_rate, num_steps, grid_step=1e-4
-):
-    google_pld = privacy_loss_distribution.from_gaussian_mechanism(
-        standard_deviation=noise_multiplier,
-        sampling_prob=sample_rate,
-        use_connect_dots=True,
-        value_discretization_interval=grid_step,
-    )
-    composed_google_pld = google_pld.self_compose(num_steps)
-
-    lower_loss_Y, pmf_Y = _get_lower_loss_and_pmf_from_pld(
-        composed_google_pld._pmf_remove
-    )
-    lower_loss_Z, pmf_Z = _get_lower_loss_and_pmf_from_pld(composed_google_pld._pmf_add)
-
-    return lower_loss_Z, pmf_Z, lower_loss_Y, pmf_Y
-
-
-def get_beta(
+def get_beta_from_pld(
+    pld: privacy_loss_distribution.PrivacyLossDistribution,
     alpha: Union[float, np.ndarray],
-    noise_multiplier: float,
-    sample_rate: float,
-    num_steps: int,
-    grid_step=1e-4,
+    num_steps: float = 1e-4,
 ):
-    """
-    Find FNR for a given FPR in DP-SGD.
-
-    Arguments:
-        alpha: Target FPR, either a single float or a numpy array
-        noise_multiplier: DP-SGD noise multiplier
-        sample_rate: Subsampled Gaussian sampling rate
-        num_steps: Number of steps
-        gird_step: Step size of the discretization grid
-    """
-    num_steps = int(num_steps)
-
-    # Get the composed PLRVs. Using paper notation, note that Z = -X
-    lower_loss_Z, pmf_Z, lower_loss_Y, pmf_Y = _get_dpsgd_composed_plrv_pmfs(
-        noise_multiplier=noise_multiplier,
-        sample_rate=sample_rate,
-        num_steps=num_steps,
-        grid_step=grid_step,
+    lower_loss_Y, pmf_Y = _get_lower_loss_and_pmf_from_pld(
+        pld._pmf_remove
     )
+    lower_loss_Z, pmf_Z = _get_lower_loss_and_pmf_from_pld(pld._pmf_add)
+
     # Get the discrete points of alpha, beta
     alphas = np.cumsum(pmf_Z) - pmf_Z
     betas = np.cumsum(pmf_Y)
@@ -133,6 +96,35 @@ def get_beta(
     assert np.all(betas[idx_Y - 1] < beta) and np.all(beta < betas[idx_Y])
 
     return beta
+
+
+def get_beta(
+    alpha: Union[float, np.ndarray],
+    noise_multiplier: float,
+    sample_rate: float,
+    num_steps: int,
+    grid_step=1e-4,
+):
+    """
+    Find FNR for a given FPR in DP-SGD.
+
+    Arguments:
+        alpha: Target FPR, either a single float or a numpy array
+        noise_multiplier: DP-SGD noise multiplier
+        sample_rate: Subsampled Gaussian sampling rate
+        num_steps: Number of steps
+        gird_step: Step size of the discretization grid
+    """
+    num_steps = int(num_steps)
+
+    pld = privacy_loss_distribution.from_gaussian_mechanism(
+        standard_deviation=noise_multiplier,
+        sampling_prob=sample_rate,
+        use_connect_dots=True,
+        value_discretization_interval=grid_step,
+    )
+    pld = pld.self_compose(num_steps)
+    return get_beta_from_pld(pld, grid_step=grid_step)
 
 
 def get_advantage(
