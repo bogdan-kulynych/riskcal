@@ -1,11 +1,12 @@
 # ---
 # jupyter:
 #   jupytext:
+#     formats: ipynb,py:light
 #     text_representation:
 #       extension: .py
 #       format_name: light
 #       format_version: '1.5'
-#       jupytext_version: 1.14.1
+#       jupytext_version: 1.16.1
 #   kernelspec:
 #     display_name: Python 3 (ipykernel)
 #     language: python
@@ -59,16 +60,16 @@ exp_metadata = (
 )
 exp_metadata
 
-0.705275 - 0.521789
+# Accuracy difference
+exp_metadata.test_acc.max() - exp_metadata.test_acc.min()
 
 
 # +
-# Re-implementation with PRV accounting.
 def get_epsilon(noise_multiplier, sample_rate, num_steps, delta):
-    acct = opacus_acct.prv.PRVAccountant()
+    acct = riskcal.pld.CTDAccountant()
     for _ in range(int(num_steps)):
         acct.step(noise_multiplier=noise_multiplier, sample_rate=sample_rate)
-    return acct.get_epsilon(delta)
+    return acct.get_epsilon(delta=delta)
     
 
 def get_beta(noise_multiplier, sample_rate, num_steps, alpha, discretization=0.0001):
@@ -79,6 +80,11 @@ def get_beta(noise_multiplier, sample_rate, num_steps, alpha, discretization=0.0
         num_steps=int(num_steps)
     )
 
+
+# -
+
+for i, row in exp_metadata.iterrows():
+    print(get_epsilon(row.sigma, row.q, row.steps, delta=1e-5))
 
 # +
 cf_delta = 1e-5
@@ -131,8 +137,8 @@ g = sns.relplot(
             }
         )
     ),
-    y="Accuracy",
-    x="Attack risk",
+    y="Attack risk",
+    x="Accuracy",
     hue="Method",
     hue_order=["Standard calibration", "Attack risk calibration"],
     col=r"$\alpha$",
@@ -140,7 +146,7 @@ g = sns.relplot(
     marker="o",
 )
 
-plt.xlim(0, 1.0)
+# plt.xlim(0, 1.0)
 
 plt.savefig("../images/gpt2_err_rates_calibration.pgf", bbox_inches="tight", format="pgf")
 
@@ -166,8 +172,8 @@ g = sns.relplot(
             }
         )
     ),
-    y="Attack risk",
-    x="Accuracy",
+    x="Attack risk",
+    y="Accuracy",
     hue="Method",
     hue_order=["Standard calibration", "Attack risk calibration"],
     col=r"$\alpha$",
@@ -175,12 +181,4 @@ g = sns.relplot(
     marker="o",
 )
 
-# plt.savefig("../images/gpt2_err_rates_calibration.pgf", bbox_inches="tight", format="pgf")
-# -
-
-for i, row in tqdm.tqdm(list(exp_metadata.iterrows())):
-    eps = get_epsilon(row.sigma, row.q, row.steps, cf_delta)
-    naive_adv = riskcal.utils.get_err_rate_for_epsilon_delta(alpha=0.1, epsilon=eps, delta=cf_delta)
-    print(naive_adv)
-
-
+plt.savefig("../images/gpt2_err_rates_calibration_flipped.pgf", bbox_inches="tight", format="pgf")
