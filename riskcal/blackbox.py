@@ -54,7 +54,7 @@ def find_noise_multiplier_for_epsilon_delta(
 
     mu_L = mu_R
     eps_L = eps_R
-    while eps_L < epsilon:
+    while eps_L <= epsilon:
         mu_L /= np.sqrt(2)
         eps_L = compute_epsilon(mu_L)
 
@@ -62,6 +62,7 @@ def find_noise_multiplier_for_epsilon_delta(
     bracket = [mu_L, mu_R]
     while not has_converged:
         mu_err = (bracket[1] - bracket[0]) * 0.01
+        assert mu_err > 0
         mu_guess = root_scalar(
             lambda mu: compute_epsilon(mu) - epsilon,
             bracket=bracket,

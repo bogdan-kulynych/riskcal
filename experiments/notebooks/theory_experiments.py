@@ -59,15 +59,15 @@ import riskcal
 sample_rate = 0.001
 num_steps = 10_000
 classical_delta = 1e-5
-accountant = opacus_acct.prv.PRVAccountant
+accountant = riskcal.pld.CTDAccountant
 
 delta_error = 1e-6
 eps_error = 1e-6
 
 # %%
 adv_vals = np.concatenate([
-    np.logspace(np.log10(0.01), np.log10(0.05), 10),
-    np.linspace(0.05, 0.25, 10)
+    np.logspace(np.log10(0.001), np.log10(0.05), 5),
+    np.linspace(0.05, 0.25, 5)
 ])
 results_adv_calibration = []
 
@@ -90,12 +90,12 @@ for adv_val in tqdm.tqdm(list(adv_vals)):
     print(f"{classical_noise=}")
 
     # Advantage calibration.
-    best_noise = riskcal.blackbox.find_noise_multiplier_for_advantage(
-        accountant=accountant,
+    best_noise = riskcal.pld.find_noise_multiplier_for_advantage(
+        # accountant=accountant,
         advantage=adv_val,
         sample_rate=sample_rate,
         num_steps=num_steps,
-        eps_error=eps_error,
+        # eps_error=eps_error,
     )
     noise_ratio = classical_noise / best_noise
 
@@ -268,8 +268,10 @@ plt.savefig("../images/dpsgd_err_rates_calibration.pgf", bbox_inches='tight', fo
 
 # %%
 # %%timeit
-riskcal.pld.get_beta(alpha=0.01, noise_multiplier=1.0, sample_rate=0.001, num_steps=10_000)
+riskcal.pld.get_beta(alpha=0.01, noise_multiplier=1.0, sample_rate=0.001, num_steps=10_000, grid_step=1e-4)
 
 # %%
-# %%timeit
-riskcal.pld.find_noise_multiplier_for_err_rates(alpha=0.01, beta=0.2, sample_rate=0.001, num_steps=10_000)
+import time
+start = time.time()
+riskcal.pld.find_noise_multiplier_for_err_rates(alpha=0.01, beta=0.2, sample_rate=0.001, num_steps=10_000, grid_step=1e-4)
+time.time() - start

@@ -1,7 +1,50 @@
+from functools import reduce
 from typing import Union
+
 import numpy as np
 from dp_accounting.pld import privacy_loss_distribution
 from scipy.optimize import root_scalar
+
+from opacus.accountants.accountant import IAccountant
+
+
+class CTDAccountant(IAccountant):
+    def __init__(self):
+        super().__init__()
+
+    def step(self, *, noise_multiplier, sample_rate):
+        if len(self.history) > 1:
+            prev_noise_multiplier, prev_sample_rate, prev_steps = self.history[-1]
+            if (
+                prev_noise_multiplier == noise_multiplier
+                and prev_sample_rate == sample_rate
+            ):
+                self.history[-1] = (noise_multiplier, sample_rate, prev_steps + 1)
+                return
+        self.history.append((noise_multiplier, sample_rate, 1))
+
+    def get_epsilon(self, *, delta, grid_step=1e-4, **kwargs):
+        plds = []
+        for noise_multiplier, sample_rate, num_steps in self.history:
+            pld = privacy_loss_distribution.from_gaussian_mechanism(
+                standard_deviation=noise_multiplier,
+                sampling_prob=sample_rate,
+                use_connect_dots=True,
+                value_discretization_interval=grid_step,
+            )
+            plds.append(pld.self_compose(num_steps))
+
+        composed_pld = reduce(lambda a, b: a.compose(b), plds)
+        return composed_pld.get_epsilon_for_delta(delta)
+
+    def __len__(self):
+        total = 0
+        for _, _, steps in self.history:
+            total += steps
+        return total
+
+    def mechanism(self):
+        return "ctd"
 
 
 def _get_domain_and_pmf_from_pld(pld):
@@ -19,7 +62,7 @@ def _get_lower_loss_and_pmf_from_pld(pld):
 
 
 def _get_dpsgd_composed_plrv_pmfs(
-    noise_multiplier, sample_rate, num_steps, grid_step=0.002
+    noise_multiplier, sample_rate, num_steps, grid_step=1e-4
 ):
     google_pld = privacy_loss_distribution.from_gaussian_mechanism(
         standard_deviation=noise_multiplier,
@@ -42,7 +85,7 @@ def get_beta(
     noise_multiplier: float,
     sample_rate: float,
     num_steps: int,
-    grid_step=0.002,
+    grid_step=1e-4,
 ):
     """
     Find FNR for a given FPR in DP-SGD.
@@ -92,12 +135,28 @@ def get_beta(
     return beta
 
 
+def get_advantage(
+    noise_multiplier: float,
+    sample_rate: float,
+    num_steps: int,
+    grid_step=1e-4,
+):
+    google_pld = privacy_loss_distribution.from_gaussian_mechanism(
+        standard_deviation=noise_multiplier,
+        sampling_prob=sample_rate,
+        use_connect_dots=True,
+        value_discretization_interval=grid_step,
+    )
+    composed_google_pld = google_pld.self_compose(num_steps)
+    return composed_google_pld.get_delta_for_epsilon(0)
+
+
 def find_noise_multiplier_for_err_rates(
     alpha: float,
     beta: float,
     sample_rate: float,
     num_steps: float,
-    grid_step: float = 0.002,
+    grid_step: float = 1e-4,
     mu_max=100.0,
     beta_error=0.001,
 ):
@@ -160,3 +219,36 @@ def find_noise_multiplier_for_err_rates(
 
     assert _get_beta(bracket[1]) > beta - beta_error
     return bracket[1]
+
+
+def find_noise_multiplier_for_advantage(
+    advantage: float,
+    sample_rate: float,
+    num_steps: float,
+    grid_step: float = 1e-4,
+    mu_max=100.0,
+    advantage_error=0.001,
+):
+    """
+    Find a noise multiplier that satisfies a given target advantage.
+    Adapted from https://github.com/microsoft/prv_accountant/blob/main/prv_accountant/dpsgd.py
+
+    :param alpha: Attack FPR bound
+    :param beta: Attack FNR bound
+    :param sample_rate: Probability of a record being in batch for Poisson sampling
+    :param num_steps: Number of optimisation steps
+    :param grid_step: Discretization grid step
+    :param delta: Value of DP delta
+    :param float mu_max: Maximum value of noise multiplier of the search.
+    """
+    # Solve advantage = 1 - 2 * fp
+    fp = -0.5 * (advantage - 1)
+    return find_noise_multiplier_for_err_rates(
+        alpha=fp,
+        beta=fp,
+        sample_rate=sample_rate,
+        num_steps=num_steps,
+        grid_step=grid_step,
+        mu_max=mu_max,
+        beta_error=advantage_error,
+    )

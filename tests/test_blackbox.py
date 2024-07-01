@@ -8,27 +8,30 @@ from scipy.stats import norm
 from scipy.optimize import root_scalar
 
 
-@pytest.fixture
-def accountant():
-    yield accountants.rdp.RDPAccountant
+@pytest.fixture(params=[accountants.rdp.RDPAccountant, riskcal.pld.CTDAccountant])
+def accountant(request):
+    return request.param
 
 
 sample_rate = 0.001
-num_dpsgd_steps = 10
+num_dpsgd_steps = 10000
 
 
 @pytest.mark.parametrize(
     "advantage, sample_rate, num_steps",
     [
-        (0.1, 1, 1),
-        (0.1, 1, 1),
-        (0.1, 1, 1),
-        (0.25, sample_rate, num_dpsgd_steps),
-        (0.25, sample_rate, num_dpsgd_steps),
+        # Gaussian mechanism.
+        (0.01, 1, 1),
+        (0.10, 1, 1),
+        (0.25, 1, 1),
+        # DP-SGD.
+        (0.01, sample_rate, num_dpsgd_steps),
+        (0.10, sample_rate, num_dpsgd_steps),
         (0.25, sample_rate, num_dpsgd_steps),
     ],
 )
-def test_adv_calibration(accountant, advantage, sample_rate, num_steps):
+def test_adv_calibration_correctness(accountant, advantage, sample_rate, num_steps):
+    advantage_error = 0.01
     calibrated_mu = riskcal.blackbox.find_noise_multiplier_for_advantage(
         accountant, advantage=advantage, sample_rate=sample_rate, num_steps=num_steps
     )
@@ -38,7 +41,9 @@ def test_adv_calibration(accountant, advantage, sample_rate, num_steps):
         acct_obj.step(noise_multiplier=calibrated_mu, sample_rate=sample_rate)
 
     # Verify that mu is calibrated for (0, adv)-DP:
-    assert acct_obj.get_epsilon(delta=advantage) == pytest.approx(0.0, abs=0.01)
+    assert acct_obj.get_epsilon(delta=advantage) == pytest.approx(
+        0.0, abs=advantage_error
+    )
 
 
 @pytest.mark.parametrize(
@@ -226,7 +231,7 @@ def test_err_rates_calibration_improvement(accountant, epsilon, sample_rate, num
     calibrated_mu = calibration_result.noise_multiplier
     calibrated_delta = calibration_result.calibration_delta
 
-    # We should get better less noise with direct calibration:
+    # We should get less noise with direct calibration:
     assert standard_mu / calibrated_mu > 1.25
 
     # Check that alpha beta guarantees are correct.
