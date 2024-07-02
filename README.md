@@ -10,7 +10,8 @@
 
 The library provides tools for calibrating the noise scale in (epsilon, delta)-DP mechanisms to one
 of the two notions of operational attack risk (attack accuracy/advantage, or attack TPR and FPR) instead of the
-(epsilon, delta) parameters. This enables to reduce the noise scale at the same level of targeted attack risk.
+(epsilon, delta) parameters, as well as for efficient measurement of these notions.
+The library enables to reduce the noise scale at the same level of targeted attack risk.
 
 
 ### Using the Library
@@ -22,37 +23,60 @@ pip install riskcal
 
 #### Quickstart
 
-First, set up an [opacus](https://github.com/pytorch/opacus/)-compatible privacy accountant:
+##### Measuring the Exact f-DP / Trade-Off Curve for any DP Mechanism
+To measure the attack trade-off curve (equivalent to ROC) for DP-SGD, you can run
 ```
 import riskcal
-from opacus import accountants
-accountant = accountants.rdp.RDPAccountant
-```
+import numpy as np
 
-Calibrate to a given attack advantage (`target_adv`):
-
-```
-calibration_result = riskcal.blackbox.find_noise_multiplier_for_advantage(
-    accountant=accountant,
-    advantage=target_adv,
+alphas = np.array([0.01, 0.05, 0.1])
+betas = riskcal.pld.get_beta(
+    alpha=alphas,
+    noise_multiplier=noise_multiplier,
     sample_rate=sample_rate,
     num_steps=num_steps,
-    delta_error=delta_error
 )
 ```
 
-Calibrate noise to a given attack TPR (`target_tpr`) at FPR = 0.01:
+You can also get the trade-off curve for any DP mechanism [supported](https://github.com/google/differential-privacy/tree/0b109e959470c43e9f177d5411603b70a56cdc7a/python/dp_accounting)
+by Google's DP accounting library, given its privacy loss distribution (PLD):
+```
+import riskcal
+import numpy as np
 
+alphas = np.array([0.01, 0.05, 0.1])
+betas = riskcal.pld.get_beta_from_pld(pld, alpha=alphas)
+```
+
+##### Direct Calibration for DP-SGD
+To calibrate noise scale in DP-SGD to a given attack FPR (beta) and FNR (alpha), run:
 ```
 import riskcal
 
+noise_multiplier = riskcal.pld.find_noise_multiplier_for_err_rates(
+    beta=0.2,
+    alpha=0.01,
+    sample_rate=sample_rate,
+    num_steps=num_steps
+)
+```
+
+##### Black-Box Calibration using a Given Accountant
+First, set up an [opacus](https://github.com/pytorch/opacus/)-compatible privacy accountant. The
+library provides an Opacus-compatible interface of the [connect-the-dots accountant](https://arxiv.org/abs/2207.04380).
+```
+import riskcal
+accountant = riskcal.pld.CTDAccountant
+```
+
+Calibrate to a given attack FPR (beta) and FNR (alpha):
+```
 calibration_result = riskcal.blackbox.find_noise_multiplier_for_err_rates(
     accountant=accountant,
-    beta=1 - target_tpr,
+    beta=0.2,
     alpha=0.01,
     sample_rate=sample_rate,
     num_steps=num_steps,
-    delta_error=delta_error
 )
 ```
 
@@ -60,32 +84,3 @@ Retrieve the calibrated noise multiplier:
 ```
 calibration_result.noise_multiplier
 ```
-
-### Installing Dependencies for Reproducing Experiments in the Paper
-
-```
-poetry install --with experiments --with dev
-```
-
-### Reproducing Plots in the Paper
-
-Run:
-```
-poetry run jupytext --to ipynb experiments/notebooks/*.py
-poetry run jupyter notebook
-```
-
-Then, run each notebook in Jupyter.
-
-
-### Reproducing Data
-
-We provide information from experimental runs from DP-SGD in the
-experiments/data folder. To reproduce these, run:
-
-* https://github.com/ftramer/Handcrafted-DP/blob/main/scripts/run_cnns_cifar10.py
-* https://github.com/microsoft/dp-transformers/blob/main/research/fine_tune_llm_w_qlora/fine-tune-nodp.py
-
-with the parameters mentioned in the appendix of the paper. Note that the scripts above require
-minor modifications to work with the parameters (i.e., adjust LoRA layers for GPT-2; by default they are set
-for Mistral), and additional instrumentation to output the test accuracy metric and the mechanism parameters.
