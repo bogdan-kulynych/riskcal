@@ -7,8 +7,11 @@ from scipy.optimize import root_scalar
 
 
 class CTDAccountant:
+    """
+    Opacus-compatible Connect the Dots accountant.
+    """
     def __init__(self):
-        super().__init__()
+        self.history = []
 
     def step(self, *, noise_multiplier, sample_rate):
         if len(self.history) > 1:
@@ -44,6 +47,75 @@ class CTDAccountant:
     def mechanism(self):
         return "ctd"
 
+    # The following methods are copied from https://opacus.ai/api/_modules/opacus/accountants/accountant.html#IAccountant
+    # to avoid the direct dependence on the opacus package.
+    def get_optimizer_hook_fn(
+        self, sample_rate: float
+    ):
+        """
+        Returns a callback function which can be used to attach to DPOptimizer
+        Args:
+            sample_rate: Expected sampling rate used for accounting
+        """
+
+        def hook_fn(optim):
+            # This works for Poisson for both single-node and distributed
+            # The reason is that the sample rate is the same in both cases (but in
+            # distributed mode, each node samples among a subset of the data)
+            self.step(
+                noise_multiplier=optim.noise_multiplier,
+                sample_rate=sample_rate * optim.accumulated_iterations,
+            )
+
+        return hook_fn
+
+    def state_dict(self, destination=None):
+        """
+        Returns a dictionary containing the state of the accountant.
+        Args:
+            destination: a mappable object to populate the current state_dict into.
+                If this arg is None, an OrderedDict is created and populated.
+                Default: None
+        """
+        if destination is None:
+            destination = OrderedDict()
+        destination["history"] = deepcopy(self.history)
+        destination["mechanism"] = self.__class__.mechanism
+        return destination
+
+    def load_state_dict(self, state_dict):
+        """
+        Validates the supplied state_dict and populates the current
+        Privacy Accountant's state dict.
+
+        Args:
+            state_dict: state_dict to load.
+
+        Raises:
+            ValueError if supplied state_dict is invalid and cannot be loaded.
+        """
+        if state_dict is None or len(state_dict) == 0:
+            raise ValueError(
+                "state dict is either None or empty and hence cannot be loaded"
+                " into Privacy Accountant."
+            )
+        if "history" not in state_dict.keys():
+            raise ValueError(
+                "state_dict does not have the key `history`."
+                " Cannot be loaded into Privacy Accountant."
+            )
+        if "mechanism" not in state_dict.keys():
+            raise ValueError(
+                "state_dict does not have the key `mechanism`."
+                " Cannot be loaded into Privacy Accountant."
+            )
+        if self.__class__.mechanism != state_dict["mechanism"]:
+            raise ValueError(
+                f"state_dict of {state_dict['mechanism']} cannot be loaded into "
+                f" Privacy Accountant with mechanism {self.__class__.mechanism}"
+            )
+        self.history = state_dict["history"]
+
 
 def _get_domain_and_pmf_from_pld(pld):
     pld = pld.to_dense_pmf()
@@ -62,7 +134,6 @@ def _get_lower_loss_and_pmf_from_pld(pld):
 def get_beta_from_pld(
     pld: privacy_loss_distribution.PrivacyLossDistribution,
     alpha: Union[float, np.ndarray],
-    num_steps: float = 1e-4,
 ):
     lower_loss_Y, pmf_Y = _get_lower_loss_and_pmf_from_pld(
         pld._pmf_remove
@@ -124,7 +195,7 @@ def get_beta(
         value_discretization_interval=grid_step,
     )
     pld = pld.self_compose(num_steps)
-    return get_beta_from_pld(pld, grid_step=grid_step)
+    return get_beta_from_pld(pld, alpha=alpha)
 
 
 def get_advantage(
