@@ -62,8 +62,8 @@ noise_multiplier = riskcal.pld.find_noise_multiplier_for_err_rates(
 ```
 
 ##### Black-Box Calibration using a Given Accountant
-First, set up an [opacus](https://github.com/pytorch/opacus/)-compatible privacy accountant. The
-library provides an Opacus-compatible interface of the [connect-the-dots accountant](https://arxiv.org/abs/2207.04380).
+The library also supports calibration of DP-SGD given a black-boxn [opacus](https://github.com/pytorch/opacus/)-compatible privacy accountant. The
+library also provides an Opacus-compatible interface of the [connect-the-dots accountant](https://arxiv.org/abs/2207.04380).
 ```
 import riskcal
 accountant = riskcal.pld.CTDAccountant
