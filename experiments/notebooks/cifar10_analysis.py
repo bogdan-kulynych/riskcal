@@ -53,59 +53,6 @@ exp_metadata = pd.read_csv("../data/cifar10_metadata.csv", index_col=0)
 exp_metadata
 
 # +
-# RDP accounting as in the original implementation
-# Based on https://github.com/ftramer/Handcrafted-DP/blob/main/dp_utils.py
-ORDERS = [1 + x / 10.0 for x in range(1, 100)] + list(range(12, 64))
-
-
-def get_renyi_divergence(sample_rate, noise_multiplier, orders=ORDERS):
-    rdp = opacus_acct.analysis.rdp.compute_rdp(
-        q=sample_rate, noise_multiplier=noise_multiplier, steps=1, orders=orders
-    )
-    return rdp
-
-
-def get_privacy_spent(rdp, delta=1e-5, orders=ORDERS):
-    return opacus_acct.analysis.rdp.get_privacy_spent(
-        rdp=rdp, delta=delta, orders=orders
-    )[0]
-
-def get_beta(rdp, alpha=0.1, grid_size=1000, orders=ORDERS):
-    deltas = np.linspace(0, 1 - alpha, grid_size)
-    betas = []
-    for delta in deltas:
-        beta = riskcal.utils.get_err_rate_for_epsilon_delta(
-            get_privacy_spent(rdp, delta=delta, orders=orders),
-            delta=delta,
-            alpha=alpha,
-        )
-        betas.append(beta)
-
-    best_index = np.argmax(betas)
-    return betas[best_index], deltas[best_index]
-    
-def get_rdp(noise_multiplier, epochs, batch_size=8192, data_size=50000, orders=ORDERS):
-    orders = ORDERS
-    bn_noise_multiplier = 8.0
-    sample_rate = batch_size / data_size
-    steps = np.ceil(data_size / batch_size)
-    noise_multiplier = noise_multiplier
-
-    # from https://github.com/ftramer/Handcrafted-DP/blob/main/cnns.py
-    # compute the RDP spent in normalization.
-    rdp_norm = 2 * get_renyi_divergence(
-        sample_rate=1.0, noise_multiplier=bn_noise_multiplier, orders=orders
-    )
-
-    rdp_sgd = (
-        get_renyi_divergence(sample_rate, noise_multiplier, orders=orders)
-        * steps
-        * epochs
-    )
-    return rdp_sgd + rdp_norm
-
-
-# +
 # Reimplemented based on https://github.com/ftramer/Handcrafted-DP/blob/main/dp_utils.py
 from dp_accounting.pld import privacy_loss_distribution
 
@@ -113,9 +60,8 @@ def get_pld(noise_multiplier, epochs, batch_size=8192, data_size=50000):
     norm_noise_multiplier = 8.0
     sgd_noise_multiplier = noise_multiplier
     sample_rate = batch_size / data_size
-    steps = int(np.ceil(data_size / batch_size))
+    steps = int(epochs * np.ceil(data_size / batch_size))
     
-
     # from https://github.com/ftramer/Handcrafted-DP/blob/main/cnns.py
     # compute the budget spent in normalization.
     pld_norm = (privacy_loss_distribution
@@ -139,7 +85,7 @@ def get_beta(pld, alpha=0.1):
 
 # +
 cf_delta = 1e-5
-alphas = [0.01, 0.05, 0.1]
+alphas = np.array([0.01, 0.05, 0.1])
 
 plot_data = []
 for i, row in tqdm.tqdm(list(exp_metadata.iterrows())):
@@ -154,15 +100,15 @@ for i, row in tqdm.tqdm(list(exp_metadata.iterrows())):
         cf_beta = riskcal.utils.get_err_rate_for_epsilon_delta(
             cf_eps, cf_delta, alpha=alpha
         )
-
+    
         # FPR/FNR calibrated
         cal_beta = get_beta(pld, alpha=alpha)
-
+    
         plot_data.append(
             dict(
                 alpha=alpha,
                 cf_beta=cf_beta,
-                cf_tpr=1 - cf_beta,44
+                cf_tpr=1 - cf_beta,
                 cf_eps=cf_eps,
                 cal_beta=cal_beta,
                 cal_tpr=1 - cal_beta,

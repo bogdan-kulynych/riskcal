@@ -6,7 +6,7 @@
 #       extension: .py
 #       format_name: light
 #       format_version: '1.5'
-#       jupytext_version: 1.16.1
+#       jupytext_version: 1.16.2
 #   kernelspec:
 #     display_name: Python 3 (ipykernel)
 #     language: python
@@ -27,8 +27,6 @@ from scipy.stats import norm
 from scipy.optimize import minimize_scalar
 
 from tqdm import autonotebook as tqdm
-
-from opacus import accountants as opacus_acct
 
 import matplotlib as mpl
 from matplotlib import pyplot as plt
@@ -54,8 +52,6 @@ exp_metadata = pd.read_csv("../data/gpt2_metadata.csv", index_col=None)
 
 exp_metadata = (
     exp_metadata
-    .query("sigma < 2")
-    .query("eps not in [3.0, 3.75, 6.00]")
     .sort_values(by="sigma")
 )
 exp_metadata
@@ -72,7 +68,7 @@ def get_epsilon(noise_multiplier, sample_rate, num_steps, delta):
     return acct.get_epsilon(delta=delta)
     
 
-def get_beta(noise_multiplier, sample_rate, num_steps, alpha, discretization=0.0001):
+def get_beta(noise_multiplier, sample_rate, num_steps, alpha):
     return riskcal.pld.get_beta(
         alpha=alpha,
         noise_multiplier=noise_multiplier,
