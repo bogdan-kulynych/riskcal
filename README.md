@@ -48,7 +48,7 @@ alphas = np.array([0.01, 0.05, 0.1])
 betas = riskcal.pld.get_beta_from_pld(pld, alpha=alphas)
 ```
 
-##### Direct Calibration for DP-SGD
+##### Calibrating DP-SGD to attack FNR/FPR
 To calibrate noise scale in DP-SGD to a given attack FPR (beta) and FNR (alpha), run:
 ```
 import riskcal
@@ -59,28 +59,4 @@ noise_multiplier = riskcal.pld.find_noise_multiplier_for_err_rates(
     sample_rate=sample_rate,
     num_steps=num_steps
 )
-```
-
-##### Black-Box Calibration using a Given Accountant
-The library also supports calibration of DP-SGD given a black-boxn [opacus](https://github.com/pytorch/opacus/)-compatible privacy accountant. The
-library also provides an Opacus-compatible interface of the [connect-the-dots accountant](https://arxiv.org/abs/2207.04380).
-```
-import riskcal
-accountant = riskcal.pld.CTDAccountant
-```
-
-Calibrate to a given attack FPR (beta) and FNR (alpha):
-```
-calibration_result = riskcal.blackbox.find_noise_multiplier_for_err_rates(
-    accountant=accountant,
-    beta=0.2,
-    alpha=0.01,
-    sample_rate=sample_rate,
-    num_steps=num_steps,
-)
-```
-
-Retrieve the calibrated noise multiplier:
-```
-calibration_result.noise_multiplier
 ```
