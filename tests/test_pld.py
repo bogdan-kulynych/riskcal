@@ -86,7 +86,7 @@ def test_err_rates_calibration_correctness(alpha, beta, sample_rate, num_steps):
     assert expected_beta == pytest.approx(beta, abs=beta_error)
 
 
-@pytest.mark.skip("Investigate big difference between direct and blackbox.")
+@pytest.mark.skip("TODO: Investigate the discrepancy between direct and blackbox.")
 @pytest.mark.parametrize(
     "advantage, sample_rate, num_steps, method",
     [

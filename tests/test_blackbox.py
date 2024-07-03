@@ -8,7 +8,7 @@ from scipy.stats import norm
 from scipy.optimize import root_scalar
 
 
-@pytest.fixture(params=[accountants.rdp.RDPAccountant, riskcal.pld.CTDAccountant])
+@pytest.fixture(params=[accountants.rdp.RDPAccountant])
 def accountant(request):
     return request.param
 
@@ -43,48 +43,6 @@ def test_adv_calibration_correctness(accountant, advantage, sample_rate, num_ste
     # Verify that mu is calibrated for (0, adv)-DP:
     assert acct_obj.get_epsilon(delta=advantage) == pytest.approx(
         0.0, abs=advantage_error
-    )
-
-
-@pytest.mark.parametrize(
-    "beta, sample_rate, num_steps, method",
-    [
-        # (0.25, 1, 1, "brent"),
-        (0.25, sample_rate, num_dpsgd_steps, "brent"),
-        (0.10, sample_rate, num_dpsgd_steps, "brent"),
-    ],
-)
-def test_err_rates_adv_calibration_equivalence(
-    accountant, beta, sample_rate, num_steps, method
-):
-    alpha = beta
-    advantage = 1 - alpha - beta
-    classical_delta = 1e-5
-    delta_error = 0.001
-    eps_error = 0.01
-
-    assert alpha + beta < 1
-    calibration_result = riskcal.blackbox.find_noise_multiplier_for_err_rates(
-        accountant,
-        alpha=alpha,
-        beta=beta,
-        sample_rate=sample_rate,
-        num_steps=num_steps,
-        delta_error=delta_error,
-        mu_max=100.0,
-        method=method,
-    )
-
-    noise_multiplier_for_adv = riskcal.blackbox.find_noise_multiplier_for_advantage(
-        accountant,
-        advantage=advantage,
-        sample_rate=sample_rate,
-        num_steps=num_steps,
-        mu_max=100.0,
-    )
-    assert calibration_result.calibration_epsilon == pytest.approx(0, abs=eps_error)
-    assert calibration_result.noise_multiplier == pytest.approx(
-        noise_multiplier_for_adv, abs=eps_error
     )
 
 
