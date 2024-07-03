@@ -1,6 +1,7 @@
-## Attack-Aware Noise Calibration for Differential Privacy
+## riskcal
 
 [![CI](https://github.com/bogdan-kulynych/riskcal/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/bogdan-kulynych/riskcal/actions/workflows/ci.yml)
+[![arXiv](https://img.shields.io/badge/arXiv-2407.02191-b31b1b.svg)](https://arxiv.org/abs/2407.02191)
 
 ---
 
@@ -24,7 +25,7 @@ pip install riskcal
 #### Quickstart
 
 ##### Measuring the Exact f-DP / Trade-Off Curve for any DP Mechanism
-To measure the attack trade-off curve (equivalent to ROC) for DP-SGD, you can run
+To measure the attack trade-off curve (equivalent to attack's receiver-operating curve) for DP-SGD, you can run
 ```
 import riskcal
 import numpy as np
