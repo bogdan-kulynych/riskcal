@@ -198,6 +198,72 @@ def get_beta(
     return get_beta_from_pld(pld, alpha=alpha)
 
 
+def get_alpha(
+    beta: Union[float, np.ndarray],
+    noise_multiplier: float,
+    sample_rate: float,
+    num_steps: int,
+    grid_step=1e-4,
+):
+    """
+    Find FPR for a given FNR in DP-SGD.
+
+    Arguments:
+        beta: Target FPR, either a single float or a numpy array
+        noise_multiplier: DP-SGD noise multiplier
+        sample_rate: Subsampled Gaussian sampling rate
+        num_steps: Number of steps
+        gird_step: Step size of the discretization grid
+    """
+    num_steps = int(num_steps)
+
+    pld = privacy_loss_distribution.from_gaussian_mechanism(
+        standard_deviation=noise_multiplier,
+        sampling_prob=sample_rate,
+        use_connect_dots=True,
+        value_discretization_interval=grid_step,
+    )
+    pld = pld.self_compose(num_steps)
+    return get_alpha_from_pld(pld, beta = beta)
+
+
+def get_alpha_from_pld(
+    pld: privacy_loss_distribution.PrivacyLossDistribution,
+    beta: Union[float, np.ndarray],
+):
+    lower_loss_Y, pmf_Y = _get_lower_loss_and_pmf_from_pld(
+        pld._pmf_remove
+    )
+    lower_loss_Z, pmf_Z = _get_lower_loss_and_pmf_from_pld(pld._pmf_add)
+
+    # get discrete points of alpha, beta
+    alphas = np.cumsum(pmf_Z) - pmf_Z
+    betas = np.cumsum(pmf_Y)
+
+    # numpy magic to get target index
+    idx_Y = np.searchsorted(betas, beta)
+
+    # sanity check: did we find the correct index?
+    assert np.all(betas[idx_Y - 1] <  beta) and np.all(beta < betas[idx_Y])
+
+    # find gamma
+    gamma = (betas[idx_Y] - beta) / pmf_Y[idx_Y]
+
+    # sanity check: gamma should be a positive and less than 1
+    assert np.all(0 < gamma) and np.all(gamma < 1)
+
+    # get index in the Y world
+    idx_Z = -lower_loss_Z - lower_loss_Y - idx_Y
+
+    # compute alpha
+    alpha = alphas[idx_Z] + gamma * pmf_Z[idx_Z]
+
+    # sanity check: did we somehow go over to the next alpha?
+    assert np.all(alphas[idx_Z] <  alpha) and np.all(alpha < alphas[idx_Z + 1])
+
+    # all sanity checks passed. Return alpha
+    return alpha
+    
 def get_advantage(
     noise_multiplier: float,
     sample_rate: float,
