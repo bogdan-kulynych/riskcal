@@ -2,7 +2,6 @@ from riskcal import blackbox
 from riskcal import conversions
 from riskcal import dpsgd
 from riskcal import plrv
-from riskcal import randomized_response
 
 from riskcal.conversions import get_advantage_from_pld, get_beta_from_pld
 from riskcal.dpsgd import (

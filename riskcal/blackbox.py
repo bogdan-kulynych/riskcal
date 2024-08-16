@@ -4,8 +4,6 @@ import warnings
 import numpy as np
 from scipy.optimize import root_scalar, minimize_scalar
 
-from . import randomized_response
-
 
 def find_noise_multiplier_for_epsilon_delta(
     accountant: "opacus.accountants.accountant.IAccountant",

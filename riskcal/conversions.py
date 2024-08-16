@@ -8,7 +8,13 @@ from dp_accounting.pld import privacy_loss_distribution
 from riskcal import plrv
 
 
-def plrvs_from_pld(pld):
+def plrvs_from_pld(
+    pld: privacy_loss_distribution.PrivacyLossDistribution,
+) -> plrv.PLRVs:
+    """
+    Extract PLRVs from a Google PLD object.
+    """
+
     def _get_plrv(pld):
         pld = pld.to_dense_pmf()
         pmf = pld._probs
@@ -25,7 +31,7 @@ def plrvs_from_pld(pld):
 def get_beta_from_pld(
     pld: privacy_loss_distribution.PrivacyLossDistribution,
     alpha: Union[float, np.ndarray],
-):
+) -> Union[float, np.ndarray]:
     """
     Get the trade-off curve for a given PLD object.
     """
@@ -34,14 +40,14 @@ def get_beta_from_pld(
 
 def get_advantage_from_pld(
     pld: privacy_loss_distribution.PrivacyLossDistribution,
-):
+) -> float:
     """
     Get advantage for a given PLD object.
     """
     return pld.get_delta_for_epsilon(0)
 
 
-def get_advantage_for_mu(mu: float):
+def get_advantage_for_mu(mu: Union[float, np.ndarray]) -> Union[float, np.ndarray]:
     """
     Get advantage for Gaussian Differential Privacy.
 
@@ -50,7 +56,9 @@ def get_advantage_for_mu(mu: float):
     return stats.norm.cdf(mu / 2) - stats.norm.cdf(-mu / 2)
 
 
-def get_beta_for_mu(mu: float, alpha: Union[float, np.ndarray]):
+def get_beta_for_mu(
+    mu: float, alpha: Union[float, np.ndarray]
+) -> Union[float, np.ndarray]:
     """
     Get beta for Gaussian Differential Privacy.
 
@@ -59,7 +67,9 @@ def get_beta_for_mu(mu: float, alpha: Union[float, np.ndarray]):
     return stats.norm.cdf(stats.norm.ppf(1 - alpha) - mu)
 
 
-def get_beta_for_epsilon_delta(epsilon: float, delta: float, alpha: float):
+def get_beta_for_epsilon_delta(
+    epsilon: float, delta: float, alpha: Union[float, np.ndarray]
+) -> Union[float, np.ndarray]:
     """Derive the error rate (e.g., FNR) for a given epsilon, delta, and the other error rate (e.g., FPR).
 
     Eq. 5 in https://arxiv.org/abs/1905.02383
@@ -81,7 +91,7 @@ def get_advantage_for_epsilon_delta(epsilon: float, delta: float) -> float:
     return (np.exp(epsilon) + 2 * delta - 1) / (np.exp(epsilon) + 1)
 
 
-def get_epsilon_for_err_rates(delta: float, alpha: float, beta: float):
+def get_epsilon_for_err_rates(delta: float, alpha: float, beta: float) -> float:
     """Derive epsilon from given FPR/FNR error rates and delta.
 
     >>> np.round(get_epsilon_for_err_rates(0.001, 0.001, 0.8), 3)

@@ -125,7 +125,7 @@ def _symmetrize_trade_off_curves(alpha, beta1, beta2):
 def get_beta(
     plrvs: PLRVs,
     alpha: Union[float, np.ndarray],
-):
+) -> Union[float, np.ndarray]:
     """
     Get the trade-off curve from PLRVs.
 

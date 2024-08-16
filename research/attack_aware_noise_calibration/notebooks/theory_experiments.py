@@ -1,11 +1,11 @@
 # ---
 # jupyter:
 #   jupytext:
-#     formats: ipynb,py:percent
+#     formats: ipynb,py:light
 #     text_representation:
 #       extension: .py
-#       format_name: percent
-#       format_version: '1.3'
+#       format_name: light
+#       format_version: '1.5'
 #       jupytext_version: 1.16.2
 #   kernelspec:
 #     display_name: Python 3 (ipykernel)
@@ -13,12 +13,11 @@
 #     name: python3
 # ---
 
-# %%
 # %load_ext autoreload
 # %autoreload 2
 # %matplotlib inline
 
-# %%
+# +
 import time
 import itertools
 
@@ -53,14 +52,13 @@ plt.rcParams.update(
         "pgf.rcfonts": False,  # don't setup fonts from rc parameters
     }
 )
+# -
 
-# %%
 import riskcal
 
-# %% [markdown]
 # ## DP-SGD
 
-# %%
+# +
 sample_rate = 0.001
 num_steps = 10_000
 standard_delta = 1e-5
@@ -69,7 +67,7 @@ accountant = riskcal.dpsgd.CTDAccountant
 delta_error = 1e-6
 eps_error = 1e-6
 
-# %%
+# +
 adv_vals = np.concatenate(
     [np.logspace(np.log10(0.004), np.log10(0.05), 5), np.linspace(0.05, 0.25, 5)]
 )
@@ -126,15 +124,15 @@ for adv_val in tqdm.tqdm(list(adv_vals)):
             epsilon_ratio=epsilon_ratio,
         )
     )
+# -
 
-# %%
 (
     pd.DataFrame(results_adv_calibration).loc[
         :, ["adv", "standard_epsilon", "best_epsilon"]
     ]
 )
 
-# %%
+# +
 plt.figure()
 
 g = sns.lineplot(
@@ -164,7 +162,7 @@ g.set_yscale("log")
 
 plt.savefig("../images/dpsgd_adv_calibration.pgf", bbox_inches="tight", format="pgf")
 
-# %%
+# +
 tpr_vals = np.linspace(0.05, 0.5, 10)
 tnr_vals = np.array([0.9, 0.95, 0.99])
 results_delta_calibration = []
@@ -229,11 +227,11 @@ for tpr, tnr in tqdm.tqdm(list(itertools.product(tpr_vals, tnr_vals))):
             epsilon_ratio=epsilon_ratio,
         )
     )
+# -
 
-# %%
 (pd.DataFrame(results_delta_calibration))
 
-# %%
+# +
 plt.figure()
 
 sns.relplot(
@@ -273,8 +271,8 @@ plt.xlim(0.05, 0.55)
 plt.savefig(
     "../images/dpsgd_err_rates_calibration.pgf", bbox_inches="tight", format="pgf"
 )
+# -
 
-# %%
 # %%timeit
 riskcal.dpsgd.get_beta(
     alpha=0.01,
@@ -284,7 +282,7 @@ riskcal.dpsgd.get_beta(
     grid_step=1e-4,
 )
 
-# %%
+# +
 import time
 
 start = time.time()
@@ -292,5 +290,6 @@ riskcal.pld.find_noise_multiplier_for_err_rates(
     alpha=0.01, beta=0.2, sample_rate=0.001, num_steps=10_000, grid_step=1e-4
 )
 time.time() - start
+# -
 
-# %%
+
