@@ -26,7 +26,7 @@ pip install riskcal
 
 ##### Measuring f-DP / Getting the Trade-Off Curve for any DP Mechanism
 To measure the attack trade-off curve (equivalent to attack's receiver-operating curve) for DP-SGD, you can run
-```
+```python
 import riskcal
 import numpy as np
 
@@ -45,7 +45,7 @@ beta = riskcal.dpsgd.get_beta_for_dpsgd(
 
 The library also provides an opacus-compatible account which uses the Connect the Dots accounting from Google's DP accounting library, with extra methods to get the trade-off curve and advantage. Thus, the above snippet is equivalent:
 
-```
+```python
 import riskcal
 import numpy as np
 
@@ -63,7 +63,7 @@ beta  = acct.get_beta(alpha=alpha)
 
 You can also get the trade-off curve for any DP mechanism [supported](https://github.com/google/differential-privacy/tree/0b109e959470c43e9f177d5411603b70a56cdc7a/python/dp_accounting)
 by Google's DP accounting library, given its privacy loss distribution (PLD) object:
-```
+```python
 import riskcal
 import numpy as np
 
@@ -78,7 +78,7 @@ beta = riskcal.conversions.get_beta_from_pld(pld, alpha=alpha)
 
 ##### Calibrating DP-SGD to attack FNR/FPR
 To calibrate noise scale in DP-SGD to a given advantage, run:
-```
+```python
 import riskcal
 
 sample_rate = 0.002
@@ -92,7 +92,7 @@ noise_multiplier = riskcal.dpsgd.find_noise_multiplier_for_advantage(
 ```
 
 To calibrate noise scale in DP-SGD to a given attack FPR (beta) and FNR (alpha), run:
-```
+```python
 import riskcal
 
 sample_rate = 0.002
