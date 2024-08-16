@@ -6,7 +6,7 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.16.1
+#       jupytext_version: 1.16.2
 #   kernelspec:
 #     display_name: Python 3 (ipykernel)
 #     language: python
@@ -36,18 +36,23 @@ import matplotlib as mpl
 from matplotlib import pyplot as plt
 
 from matplotlib.backends.backend_pgf import FigureCanvasPgf
-mpl.backend_bases.register_backend('pdf', FigureCanvasPgf)
+
+mpl.backend_bases.register_backend("pdf", FigureCanvasPgf)
 
 sns.set(
-    style="whitegrid", context="paper", font_scale=2,
-    rc={"lines.linewidth": 2.5, "lines.markersize": 6, "lines.markeredgewidth": 0.0}
+    style="whitegrid",
+    context="paper",
+    font_scale=2,
+    rc={"lines.linewidth": 2.5, "lines.markersize": 6, "lines.markeredgewidth": 0.0},
 )
-plt.rcParams.update({
-    "font.family": "sans-serif",  # use serif/main font for text elements
-    "font.serif": "Helvetica",
-    "text.usetex": True,     # use inline math for ticks
-    "pgf.rcfonts": False     # don't setup fonts from rc parameters
-})
+plt.rcParams.update(
+    {
+        "font.family": "sans-serif",  # use serif/main font for text elements
+        "font.serif": "Helvetica",
+        "text.usetex": True,  # use inline math for ticks
+        "pgf.rcfonts": False,  # don't setup fonts from rc parameters
+    }
+)
 
 # %%
 import riskcal
@@ -58,17 +63,16 @@ import riskcal
 # %%
 sample_rate = 0.001
 num_steps = 10_000
-classical_delta = 1e-5
-accountant = riskcal.pld.CTDAccountant
+standard_delta = 1e-5
+accountant = riskcal.dpsgd.CTDAccountant
 
 delta_error = 1e-6
 eps_error = 1e-6
 
 # %%
-adv_vals = np.concatenate([
-    np.logspace(np.log10(0.001), np.log10(0.05), 5),
-    np.linspace(0.05, 0.25, 5)
-])
+adv_vals = np.concatenate(
+    [np.logspace(np.log10(0.004), np.log10(0.05), 5), np.linspace(0.05, 0.25, 5)]
+)
 results_adv_calibration = []
 
 
@@ -76,28 +80,30 @@ for adv_val in tqdm.tqdm(list(adv_vals)):
     print(f"{adv_val=}")
 
     # Standard calibration.
-    classical_epsilon = riskcal.utils.get_epsilon_for_advantage(delta=classical_delta, adv=adv_val)
-    print(f"epsilon={classical_epsilon}, delta={classical_delta}")
-    classical_noise = riskcal.blackbox.find_noise_multiplier_for_epsilon_delta(
+    standard_epsilon = root_scalar(
+        lambda epsilon: riskcal.conversions.get_advantage_for_epsilon_delta(epsilon, standard_delta) - adv_val,
+        method="brentq",
+        bracket=(0, 100),
+    ).root
+    print(f"epsilon={standard_epsilon}, delta={standard_delta}")
+    standard_noise = riskcal.blackbox.find_noise_multiplier_for_epsilon_delta(
         accountant=accountant,
         sample_rate=sample_rate,
         num_steps=num_steps,
-        epsilon=classical_epsilon,
-        delta=classical_delta,
+        epsilon=standard_epsilon,
+        delta=standard_delta,
         mu_max=100.0,
         eps_error=eps_error,
     )
-    print(f"{classical_noise=}")
+    print(f"{standard_noise=}")
 
     # Advantage calibration.
-    best_noise = riskcal.pld.find_noise_multiplier_for_advantage(
-        # accountant=accountant,
+    best_noise = riskcal.dpsgd.find_noise_multiplier_for_advantage(
         advantage=adv_val,
         sample_rate=sample_rate,
         num_steps=num_steps,
-        # eps_error=eps_error,
     )
-    noise_ratio = classical_noise / best_noise
+    noise_ratio = standard_noise / best_noise
 
     acct_obj = accountant()
     for step in range(num_steps):
@@ -105,26 +111,27 @@ for adv_val in tqdm.tqdm(list(adv_vals)):
             noise_multiplier=best_noise,
             sample_rate=sample_rate,
         )
-    best_epsilon = acct_obj.get_epsilon(delta=classical_delta)
-    epsilon_ratio = best_epsilon / classical_epsilon
+    best_epsilon = acct_obj.get_epsilon(delta=standard_delta)
+    epsilon_ratio = best_epsilon / standard_epsilon
 
     print(f"{noise_ratio=} {epsilon_ratio=}")
     results_adv_calibration.append(
         dict(
             adv=adv_val,
-            classical_noise=classical_noise,
+            standard_noise=standard_noise,
             best_noise=best_noise,
             noise_ratio=noise_ratio,
-            classical_epsilon=classical_epsilon,
+            standard_epsilon=standard_epsilon,
             best_epsilon=best_epsilon,
-            epsilon_ratio=epsilon_ratio
+            epsilon_ratio=epsilon_ratio,
         )
     )
 
 # %%
 (
-    pd.DataFrame(results_adv_calibration)
-    .loc[:, ["adv", "classical_epsilon", "best_epsilon"]]
+    pd.DataFrame(results_adv_calibration).loc[
+        :, ["adv", "standard_epsilon", "best_epsilon"]
+    ]
 )
 
 # %%
@@ -133,19 +140,17 @@ plt.figure()
 g = sns.lineplot(
     data=(
         pd.DataFrame(results_adv_calibration)
-        .query("adv >= 0.01")
-        .melt(id_vars=["adv"],
-              value_vars=["classical_noise", "best_noise"],
+        .melt(
+            id_vars=["adv"],
+            value_vars=["standard_noise", "best_noise"],
         )
-        .rename(
-            columns={
-                "variable": "Method"
+        .rename(columns={"variable": "Method"})
+        .replace(
+            {
+                "standard_noise": "Standard calibration",
+                "best_noise": "Advantage calibration\hspace{2em}",
             }
         )
-        .replace({
-            "classical_noise": "Standard calibration",
-            "best_noise": "Advantage calibration\hspace{2em}",
-        })
     ),
     x="adv",
     y="value",
@@ -157,8 +162,7 @@ g.set_xlabel(r"Attack advantage, $\eta$")
 g.set_ylabel(r"Noise scale, $\sigma$")
 g.set_yscale("log")
 
-# plt.savefig("../images/dpsgd_adv_calibration.pdf", bbox_inches='tight')
-plt.savefig("../images/dpsgd_adv_calibration.pgf", bbox_inches='tight', format="pgf")
+plt.savefig("../images/dpsgd_adv_calibration.pgf", bbox_inches="tight", format="pgf")
 
 # %%
 tpr_vals = np.linspace(0.05, 0.5, 10)
@@ -173,21 +177,24 @@ for tpr, tnr in tqdm.tqdm(list(itertools.product(tpr_vals, tnr_vals))):
     if fpr + fnr >= 1:
         continue
 
-    # Classical.
-    classical_epsilon = riskcal.utils.get_epsilon_for_err_rates(classical_delta, alpha=fpr, beta=fnr)
-    classical_noise = riskcal.blackbox.find_noise_multiplier_for_epsilon_delta(
+    standard_epsilon = riskcal.conversions.get_epsilon_for_err_rates(
+        standard_delta, alpha=fpr, beta=fnr
+    )
+    standard_noise = riskcal.blackbox.find_noise_multiplier_for_epsilon_delta(
         accountant=accountant,
         sample_rate=sample_rate,
         num_steps=num_steps,
-        epsilon=classical_epsilon,
-        delta=classical_delta,
+        epsilon=standard_epsilon,
+        delta=standard_delta,
         mu_max=100.0,
         eps_error=eps_error,
     )
-    print(f"(epsilon={classical_epsilon:.4f}, delta={classical_delta:.5f}): noise={classical_noise}")
+    print(
+        f"(epsilon={standard_epsilon:.4f}, delta={standard_delta:.5f}): noise={standard_noise}"
+    )
 
     # Risk calibration for error rates.
-    noise_multiplier = riskcal.pld.find_noise_multiplier_for_err_rates(
+    noise_multiplier = riskcal.dpsgd.find_noise_multiplier_for_err_rates(
         alpha=fpr,
         beta=fnr,
         sample_rate=sample_rate,
@@ -195,7 +202,7 @@ for tpr, tnr in tqdm.tqdm(list(itertools.product(tpr_vals, tnr_vals))):
     )
 
     best_noise = noise_multiplier
-    noise_ratio = classical_noise / best_noise
+    noise_ratio = standard_noise / best_noise
 
     acct_obj = accountant()
     for step in range(num_steps):
@@ -204,8 +211,8 @@ for tpr, tnr in tqdm.tqdm(list(itertools.product(tpr_vals, tnr_vals))):
             sample_rate=sample_rate,
         )
 
-    best_epsilon = acct_obj.get_epsilon(delta=classical_delta)
-    epsilon_ratio = best_epsilon / classical_epsilon
+    best_epsilon = acct_obj.get_epsilon(delta=standard_delta)
+    epsilon_ratio = best_epsilon / standard_epsilon
 
     print(f"{noise_ratio=} {epsilon_ratio=}")
     results_delta_calibration.append(
@@ -214,19 +221,17 @@ for tpr, tnr in tqdm.tqdm(list(itertools.product(tpr_vals, tnr_vals))):
             tnr=tnr,
             fnr=fnr,
             fpr=fpr,
-            classical_noise=classical_noise,
+            standard_noise=standard_noise,
             best_noise=best_noise,
             noise_ratio=noise_ratio,
-            classical_epsilon=classical_epsilon,
+            standard_epsilon=standard_epsilon,
             best_epsilon=best_epsilon,
             epsilon_ratio=epsilon_ratio,
         )
     )
 
 # %%
-(
-    pd.DataFrame(results_delta_calibration)
-)
+(pd.DataFrame(results_delta_calibration))
 
 # %%
 plt.figure()
@@ -236,19 +241,21 @@ sns.relplot(
         pd.DataFrame(results_delta_calibration)
         .melt(
             id_vars=["tpr", "fpr"],
-            value_vars=["classical_noise", "best_noise"],
+            value_vars=["standard_noise", "best_noise"],
         )
         .assign(fpr=lambda df: df.fpr.round(3))
-        .replace({
-            "classical_noise": "Standard calibration",
-            "best_noise": "TPR/FPR calibration",
-        })
+        .replace(
+            {
+                "standard_noise": "Standard calibration",
+                "best_noise": "TPR/FPR calibration",
+            }
+        )
         .rename(
             columns={
                 "fpr": r"Attack FPR, $\alpha$",
                 "tpr": r"Attack TPR, $1 - \beta$",
                 "value": "Noise scale, $\sigma$",
-                "variable": "Method"
+                "variable": "Method",
             }
         )
     ),
@@ -263,15 +270,27 @@ sns.relplot(
 
 plt.xlim(0.05, 0.55)
 
-# plt.savefig("../images/dpsgd_err_rates_calibration.pdf", bbox_inches='tight')
-plt.savefig("../images/dpsgd_err_rates_calibration.pgf", bbox_inches='tight', format="pgf")
+plt.savefig(
+    "../images/dpsgd_err_rates_calibration.pgf", bbox_inches="tight", format="pgf"
+)
 
 # %%
 # %%timeit
-riskcal.pld.get_beta(alpha=0.01, noise_multiplier=1.0, sample_rate=0.001, num_steps=10_000, grid_step=1e-4)
+riskcal.dpsgd.get_beta(
+    alpha=0.01,
+    noise_multiplier=1.0,
+    sample_rate=0.001,
+    num_steps=10_000,
+    grid_step=1e-4,
+)
 
 # %%
 import time
+
 start = time.time()
-riskcal.pld.find_noise_multiplier_for_err_rates(alpha=0.01, beta=0.2, sample_rate=0.001, num_steps=10_000, grid_step=1e-4)
+riskcal.pld.find_noise_multiplier_for_err_rates(
+    alpha=0.01, beta=0.2, sample_rate=0.001, num_steps=10_000, grid_step=1e-4
+)
 time.time() - start
+
+# %%

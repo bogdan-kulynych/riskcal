@@ -32,98 +32,83 @@ import matplotlib as mpl
 from matplotlib import pyplot as plt
 
 from matplotlib.backends.backend_pgf import FigureCanvasPgf
-mpl.backend_bases.register_backend('pdf', FigureCanvasPgf)
+
+mpl.backend_bases.register_backend("pdf", FigureCanvasPgf)
 
 sns.set(
-    style="whitegrid", context="paper", font_scale=2,
-    rc={"lines.linewidth": 2.5, "lines.markersize": 6, "lines.markeredgewidth": 0.0}
+    style="whitegrid",
+    context="paper",
+    font_scale=2,
+    rc={"lines.linewidth": 2.5, "lines.markersize": 6, "lines.markeredgewidth": 0.0},
 )
-plt.rcParams.update({
-    "font.family": "sans-serif",  # use serif/main font for text elements
-    "font.serif": "Helvetica",
-    "text.usetex": True,     # use inline math for ticks
-    "pgf.rcfonts": False     # don't setup fonts from rc parameters
-})
+plt.rcParams.update(
+    {
+        "font.family": "sans-serif",  # use serif/main font for text elements
+        "font.serif": "Helvetica",
+        "text.usetex": True,  # use inline math for ticks
+        "pgf.rcfonts": False,  # don't setup fonts from rc parameters
+    }
+)
 # -
 
 import riskcal
 
 exp_metadata = pd.read_csv("../data/gpt2_metadata.csv", index_col=None)
 
-exp_metadata = (
-    exp_metadata
-    .sort_values(by="sigma")
-)
+exp_metadata = exp_metadata.sort_values(by="sigma")
 exp_metadata
 
 # Accuracy difference
 exp_metadata.test_acc.max() - exp_metadata.test_acc.min()
 
-
-# +
-def get_epsilon(noise_multiplier, sample_rate, num_steps, delta):
-    acct = riskcal.pld.CTDAccountant()
-    for _ in range(int(num_steps)):
-        acct.step(noise_multiplier=noise_multiplier, sample_rate=sample_rate)
-    return acct.get_epsilon(delta=delta)
-    
-
-def get_beta(noise_multiplier, sample_rate, num_steps, alpha):
-    return riskcal.pld.get_beta(
-        alpha=alpha,
-        noise_multiplier=noise_multiplier,
-        sample_rate=sample_rate,
-        num_steps=int(num_steps)
-    )
-
-
-# -
-
 for i, row in exp_metadata.iterrows():
-    print(get_epsilon(row.sigma, row.q, row.steps, delta=1e-5))
+    acct = riskcal.dpsgd.CTDAccountant()
+    for _ in range(int(row.steps)):
+        acct.step(noise_multiplier=row.sigma, sample_rate=row.q)
+    print(acct.get_epsilon(delta=standard_delta))
 
 # +
-cf_delta = 1e-5
-alphas = [0.01, 0.05, 0.1]
+standard_delta = 1e-5
+alpha = np.array([0.01, 0.05, 0.1])
 
-plot_data = []
+plot_chunks = []
 for i, row in tqdm.tqdm(list(exp_metadata.iterrows())):
-    # CF delta
-    cf_eps = get_epsilon(row.sigma, row.q, row.steps, cf_delta)
+    acct = riskcal.dpsgd.CTDAccountant()
+    for _ in range(int(row.steps)):
+        acct.step(noise_multiplier=row.sigma, sample_rate=row.q)
+        
+    standard_eps = acct.get_epsilon(delta=standard_delta)
+    standard_beta = riskcal.conversions.get_beta_for_epsilon_delta(
+        standard_eps, standard_delta, alpha=alphas
+    )
+    cal_beta = acct.get_beta(alpha=alpha)
 
-    for alpha in alphas:
-        cf_beta = riskcal.utils.get_err_rate_for_epsilon_delta(
-            cf_eps, cf_delta, alpha=alpha
-        )
-
-        # FPR/FNR calibrated
-        cal_beta = get_beta(row.sigma, row.q, row.steps, alpha=alpha)    
-        plot_data.append(
-            dict(
-                alpha=alpha,
-                cf_beta=cf_beta,
-                cf_tpr=1 - cf_beta,
-                cf_eps=cf_eps,
-                cal_beta=cal_beta,
-                cal_tpr=1 - cal_beta,
-                test_acc=row.test_acc,
-                sigma=row.sigma,
-            )
-        )
+    plot_chunks.append(
+        pd.DataFrame(dict(
+            alpha=alphas,
+            standard_beta=standard_beta,
+            standard_tpr=1 - standard_beta,
+            standard_eps=standard_eps,
+            cal_beta=cal_beta,
+            cal_tpr=1 - cal_beta,
+            test_acc=row.test_acc,
+            sigma=row.sigma,
+        ))
+    )
 
 # +
 g = sns.relplot(
     data=(
-        pd.DataFrame(plot_data)
+        pd.concat(plot_chunks, axis=0)
         .assign(test_acc=lambda df: df.test_acc * 100)
         .melt(
             id_vars=["alpha", "test_acc", "sigma"],
-            value_vars=["cal_tpr", "cf_tpr"],
+            value_vars=["cal_tpr", "standard_tpr"],
             var_name="Method",
             value_name="Attack risk",
         )
         .replace(
-            {"cal_tpr": "Attack risk calibration", "cf_tpr": "Standard calibration"}
+            {"cal_tpr": "Attack risk calibration", "standard_tpr": "Standard calibration"}
         )
         .rename(
             columns={
@@ -144,21 +129,23 @@ g = sns.relplot(
 
 # plt.xlim(0, 1.0)
 
-plt.savefig("../images/gpt2_err_rates_calibration.pgf", bbox_inches="tight", format="pgf")
+plt.savefig(
+    "../images/gpt2_err_rates_calibration.pgf", bbox_inches="tight", format="pgf"
+)
 
 # +
 g = sns.relplot(
     data=(
-        pd.DataFrame(plot_data)
+        pd.concat(plot_chunks, axis=0)
         .assign(test_acc=lambda df: df.test_acc * 100)
         .melt(
             id_vars=["alpha", "test_acc", "sigma"],
-            value_vars=["cal_tpr", "cf_tpr"],
+            value_vars=["cal_tpr", "standard_tpr"],
             var_name="Method",
             value_name="Attack risk",
         )
         .replace(
-            {"cal_tpr": "Attack risk calibration", "cf_tpr": "Standard calibration"}
+            {"cal_tpr": "Attack risk calibration", "standard_tpr": "Standard calibration"}
         )
         .rename(
             columns={
@@ -177,4 +164,8 @@ g = sns.relplot(
     marker="o",
 )
 
-plt.savefig("../images/gpt2_err_rates_calibration_flipped.pgf", bbox_inches="tight", format="pgf")
+plt.savefig(
+    "../images/gpt2_err_rates_calibration_flipped.pgf",
+    bbox_inches="tight",
+    format="pgf",
+)

@@ -20,5 +20,5 @@ def plrvs():
     ],
 )
 def test_get_beta(plrvs, alpha):
-    real_beta = riskcal.conversions.get_beta_from_gdp(1.0, alpha)
+    real_beta = riskcal.conversions.get_beta_for_mu(1.0, alpha)
     assert pytest.approx(real_beta) == riskcal.plrv.get_beta(plrvs, alpha=alpha)

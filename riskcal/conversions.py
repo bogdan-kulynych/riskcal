@@ -41,16 +41,20 @@ def get_advantage_from_pld(
     return pld.get_delta_for_epsilon(0)
 
 
-def get_advantage_from_gdp(mu: float):
+def get_advantage_for_mu(mu: float):
     """
     Get advantage for Gaussian Differential Privacy.
+
+    Corollary 2.13 in https://arxiv.org/abs/1905.02383
     """
     return stats.norm.cdf(mu / 2) - stats.norm.cdf(-mu / 2)
 
 
-def get_beta_from_gdp(mu: float, alpha: Union[float, np.ndarray]):
+def get_beta_for_mu(mu: float, alpha: Union[float, np.ndarray]):
     """
     Get beta for Gaussian Differential Privacy.
+
+    Eq. 6 in https://arxiv.org/abs/1905.02383
     """
     return stats.norm.cdf(stats.norm.ppf(1 - alpha) - mu)
 
@@ -58,7 +62,7 @@ def get_beta_from_gdp(mu: float, alpha: Union[float, np.ndarray]):
 def get_beta_for_epsilon_delta(epsilon: float, delta: float, alpha: float):
     """Derive the error rate (e.g., FNR) for a given epsilon, delta, and the other error rate (e.g., FPR).
 
-    See, e.g., Eq. 5 in https://arxiv.org/abs/1905.02383
+    Eq. 5 in https://arxiv.org/abs/1905.02383
 
     >>> np.round(get_beta_for_epsilon_delta(1.0, 0.001, 0.8), 3)
     0.073
@@ -66,6 +70,15 @@ def get_beta_for_epsilon_delta(epsilon: float, delta: float, alpha: float):
     form1 = np.array(1 - delta - np.exp(epsilon) * alpha)
     form2 = np.array(np.exp(-epsilon) * (1 - delta - alpha))
     return np.maximum.reduce([form1, form2, np.zeros_like(form1)])
+
+
+def get_advantage_for_epsilon_delta(epsilon: float, delta: float) -> float:
+    """Derive advantage from a given epsilon and delta.
+
+    >>> np.round(get_advantage_for_epsilon_delta(0., 0.001), 3)
+    0.001
+    """
+    return (np.exp(epsilon) + 2 * delta - 1) / (np.exp(epsilon) + 1)
 
 
 def get_epsilon_for_err_rates(delta: float, alpha: float, beta: float):

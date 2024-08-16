@@ -8,6 +8,10 @@ from scipy.interpolate import interp1d
 
 @dataclass
 class PLRVs:
+    """
+    Privacy loss random variables.
+    """
+
     lower_loss_Y: float
     lower_loss_Z: float
     pmf_Y: np.ndarray
@@ -123,7 +127,7 @@ def get_beta(
     alpha: Union[float, np.ndarray],
 ):
     """
-    Get the trade-off curve from PLRV PMFs.
+    Get the trade-off curve from PLRVs.
 
     By Z we denote negative X, as that is the convention in dp_accounting.
     """
