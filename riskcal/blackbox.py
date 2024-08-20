@@ -4,6 +4,8 @@ import warnings
 import numpy as np
 from scipy.optimize import root_scalar, minimize_scalar
 
+import riskcal
+
 
 def find_noise_multiplier_for_epsilon_delta(
     accountant: "opacus.accountants.accountant.IAccountant",
@@ -128,7 +130,7 @@ class _ErrRatesAccountant:
         self.accountant_kwargs = accountant_kwargs
 
     def find_noise_multiplier(self, delta):
-        epsilon = randomized_response.get_epsilon_for_err_rates(
+        epsilon = riskcal.conversions.get_epsilon_for_err_rates(
             delta, self.alpha, self.beta
         )
         try:
@@ -226,7 +228,7 @@ def find_noise_multiplier_for_err_rates(
     return CalibrationResult(
         noise_multiplier=noise_multiplier,
         calibration_delta=calibration_delta,
-        calibration_epsilon=randomized_response.get_epsilon_for_err_rates(
+        calibration_epsilon=riskcal.conversions.get_epsilon_for_err_rates(
             calibration_delta, alpha, beta
         ),
     )

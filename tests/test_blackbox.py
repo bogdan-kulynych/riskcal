@@ -90,7 +90,7 @@ def test_err_rates_calibration_correctness(
     print(f"CHECK 1: {alpha=}, {beta=} // {epsilon=}, {expected_epsilon=}")
     assert epsilon == pytest.approx(expected_epsilon, abs=eps_error)
 
-    obtained_beta = riskcal.randomized_response.get_beta_for_epsilon_delta(
+    obtained_beta = riskcal.conversions.get_beta_for_epsilon_delta(
         epsilon, calibrated_delta, alpha
     )
     print(f"CHECK 2: {alpha=}, {beta=} // {epsilon=}, {obtained_beta=}")
@@ -124,7 +124,7 @@ def test_err_rates_calibration_improvement(accountant, epsilon, sample_rate, num
     )
 
     # What is the FNR at alpha = 0.1 for the target epsilon?
-    beta = riskcal.randomized_response.get_beta_for_epsilon_delta(epsilon, delta, alpha)
+    beta = riskcal.conversions.get_beta_for_epsilon_delta(epsilon, delta, alpha)
     # Let's calibrate directly for these alpha / beta:
     calibration_result = riskcal.blackbox.find_noise_multiplier_for_err_rates(
         accountant,
@@ -147,7 +147,7 @@ def test_err_rates_calibration_improvement(accountant, epsilon, sample_rate, num
         acct_obj.step(noise_multiplier=calibrated_mu, sample_rate=sample_rate)
     obtained_epsilon = acct_obj.get_epsilon(delta=calibrated_delta)
 
-    obtained_beta = riskcal.randomized_response.get_beta_for_epsilon_delta(
+    obtained_beta = riskcal.conversions.get_beta_for_epsilon_delta(
         obtained_epsilon, calibrated_delta, alpha
     )
     assert beta == pytest.approx(obtained_beta, abs=delta_error)
