@@ -99,13 +99,10 @@ def get_beta_using_method(noise_multiplier, alpha, method, mechanism):
         )
         
     if method == "riskcal":
-        return np.minimum(
-            riskcal.pld.get_beta_from_pld(pld, alpha),
-            riskcal.pld.get_alpha_from_pld(pld, alpha)
-        )
+        return riskcal.conversions.get_beta_from_pld(pld, alpha=alpha)
     else:
         epsilon = pld.get_epsilon_for_delta(delta)
-        return riskcal.utils.get_err_rate_for_epsilon_delta(epsilon=epsilon, delta=delta, alpha=alpha)
+        return riskcal.conversions.get_beta_for_epsilon_delta(epsilon=epsilon, delta=delta, alpha=alpha)
 
 for alpha, noise_multiplier in tqdm.tqdm(list(itertools.product(alphas, noise_multipliers))):
     for mechanism, method in itertools.product(mechanisms, methods):

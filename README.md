@@ -24,37 +24,81 @@ pip install riskcal
 
 #### Quickstart
 
-##### Measuring the Exact f-DP / Trade-Off Curve for any DP Mechanism
+##### Measuring f-DP / Getting the Trade-Off Curve for any DP Mechanism
 To measure the attack trade-off curve (equivalent to attack's receiver-operating curve) for DP-SGD, you can run
-```
+```python
 import riskcal
 import numpy as np
 
-alphas = np.array([0.01, 0.05, 0.1])
-betas = riskcal.pld.get_beta(
-    alpha=alphas,
+noise_multiplier = 0.5
+sample_rate = 0.002
+num_steps = 10000
+
+alpha = np.array([0.01, 0.05, 0.1])
+beta = riskcal.dpsgd.get_beta_for_dpsgd(
+    alpha=alpha,
     noise_multiplier=noise_multiplier,
     sample_rate=sample_rate,
     num_steps=num_steps,
 )
 ```
 
-You can also get the trade-off curve for any DP mechanism [supported](https://github.com/google/differential-privacy/tree/0b109e959470c43e9f177d5411603b70a56cdc7a/python/dp_accounting)
-by Google's DP accounting library, given its privacy loss distribution (PLD):
-```
+The library also provides an opacus-compatible account which uses the Connect the Dots accounting from Google's DP accounting library, with extra methods to get the trade-off curve and advantage. Thus, the above snippet is equivalent:
+
+```python
 import riskcal
 import numpy as np
 
-alphas = np.array([0.01, 0.05, 0.1])
-betas = riskcal.pld.get_beta_from_pld(pld, alpha=alphas)
+noise_multiplier = 0.5
+sample_rate = 0.002
+num_steps = 10000
+
+acct = riskcal.dpsgd.CTDAccountant()
+for _ in range(num_steps):
+    acct.step(noise_multiplier=noise_multiplier, sample_rate=sample_rate)
+
+alpha = np.array([0.01, 0.05, 0.1])
+beta  = acct.get_beta(alpha=alpha)
+```
+
+You can also get the trade-off curve for any DP mechanism [supported](https://github.com/google/differential-privacy/tree/0b109e959470c43e9f177d5411603b70a56cdc7a/python/dp_accounting)
+by Google's DP accounting library, given its privacy loss distribution (PLD) object:
+```python
+import riskcal
+import numpy as np
+
+from dp_accounting.pld.privacy_loss_distribution import from_gaussian_mechanism
+from dp_accounting.pld.privacy_loss_distribution import from_laplace_mechanism 
+
+pld = from_gaussian_mechanism(1.0).compose(from_laplace_mechanism(0.1))
+
+alpha = np.array([0.01, 0.05, 0.1])
+beta = riskcal.conversions.get_beta_from_pld(pld, alpha=alpha)
 ```
 
 ##### Calibrating DP-SGD to attack FNR/FPR
-To calibrate noise scale in DP-SGD to a given attack FPR (beta) and FNR (alpha), run:
-```
+To calibrate noise scale in DP-SGD to a given advantage, run:
+```python
 import riskcal
 
-noise_multiplier = riskcal.pld.find_noise_multiplier_for_err_rates(
+sample_rate = 0.002
+num_steps = 10000
+
+noise_multiplier = riskcal.dpsgd.find_noise_multiplier_for_advantage(
+    advantage=0.1,
+    sample_rate=sample_rate,
+    num_steps=num_steps
+)
+```
+
+To calibrate noise scale in DP-SGD to a given attack FPR (beta) and FNR (alpha), run:
+```python
+import riskcal
+
+sample_rate = 0.002
+num_steps = 10000
+
+noise_multiplier = riskcal.dpsgd.find_noise_multiplier_for_err_rates(
     beta=0.2,
     alpha=0.01,
     sample_rate=sample_rate,

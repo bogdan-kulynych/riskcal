@@ -1,9 +1,7 @@
 import numpy as np
 import pytest
-import itertools
 
 import riskcal
-from opacus import accountants
 from scipy.stats import norm
 from scipy.optimize import root_scalar
 
@@ -15,7 +13,7 @@ num_dpsgd_steps = 10000
 
 @pytest.fixture
 def accountant():
-    yield riskcal.pld.CTDAccountant
+    yield riskcal.conversions.CTDAccountant
 
 
 @pytest.mark.parametrize(
@@ -31,7 +29,7 @@ def accountant():
 )
 def test_advantage_calibration_correctness(advantage, sample_rate, num_steps):
     advantage_error = 0.01
-    calibrated_mu = riskcal.pld.find_noise_multiplier_for_advantage(
+    calibrated_mu = riskcal.dpsgd.find_noise_multiplier_for_advantage(
         advantage=advantage,
         sample_rate=sample_rate,
         num_steps=num_steps,
@@ -39,14 +37,14 @@ def test_advantage_calibration_correctness(advantage, sample_rate, num_steps):
         grid_step=grid_step,
     )
 
-    # Verify that mu is calibrated for (0, adv)-DP:
-    assert riskcal.pld.get_advantage(
+    # Verify that mu is calibrated correctly.
+    assert riskcal.dpsgd.get_advantage_for_dpsgd(
         noise_multiplier=calibrated_mu, sample_rate=sample_rate, num_steps=num_steps
     ) == pytest.approx(advantage, abs=advantage_error)
 
     # Solve advantage = 1 - 2 * alpha
     alpha = 0.5 * (1 - advantage)
-    assert riskcal.pld.get_beta(
+    assert riskcal.dpsgd.get_beta_for_dpsgd(
         alpha=alpha,
         noise_multiplier=calibrated_mu,
         sample_rate=sample_rate,
@@ -59,31 +57,29 @@ def test_advantage_calibration_correctness(advantage, sample_rate, num_steps):
     "alpha, beta, sample_rate, num_steps",
     [
         # DP-SGD
-        (0.1, 0.25, sample_rate, num_dpsgd_steps),
+        (0.1, 0.33, sample_rate, num_dpsgd_steps),
         (0.1, 0.50, sample_rate, num_dpsgd_steps),
-        (0.1, 0.75, sample_rate, num_dpsgd_steps),
+        (0.1, 0.70, sample_rate, num_dpsgd_steps),
     ],
 )
 def test_err_rates_calibration_correctness(alpha, beta, sample_rate, num_steps):
-    beta_error = 0.01
-
-    calibrated_mu = riskcal.pld.find_noise_multiplier_for_err_rates(
+    calibrated_mu = riskcal.dpsgd.find_noise_multiplier_for_err_rates(
         alpha=alpha,
         beta=beta,
         sample_rate=sample_rate,
         num_steps=num_steps,
-        beta_error=beta_error,
+        beta_error=2 * grid_step,
         grid_step=grid_step,
     )
 
-    expected_beta = riskcal.pld.get_beta(
+    expected_beta = riskcal.dpsgd.get_beta_for_dpsgd(
         alpha=alpha,
         noise_multiplier=calibrated_mu,
         sample_rate=sample_rate,
         num_steps=num_steps,
         grid_step=grid_step,
     )
-    assert expected_beta == pytest.approx(beta, abs=beta_error)
+    assert expected_beta == pytest.approx(beta, abs=2 * grid_step)
 
 
 @pytest.mark.skip("TODO: Investigate the discrepancy between direct and blackbox.")
@@ -102,7 +98,7 @@ def test_advantage_calibration_blackbox_vs_direct(
     eps_error = 1e-4
     advantage_error = 0.01
 
-    direct_calibrated_mu = riskcal.pld.find_noise_multiplier_for_advantage(
+    direct_calibrated_mu = riskcal.conversions.find_noise_multiplier_for_advantage(
         advantage=advantage,
         sample_rate=sample_rate,
         num_steps=num_steps,
@@ -140,7 +136,7 @@ def test_err_rates_calibration_blackbox_vs_direct(
     eps_error = 1e-4
     beta_error = 0.01
 
-    direct_calibrated_mu = riskcal.pld.find_noise_multiplier_for_err_rates(
+    direct_calibrated_mu = riskcal.conversions.find_noise_multiplier_for_err_rates(
         alpha=alpha,
         beta=beta,
         sample_rate=sample_rate,

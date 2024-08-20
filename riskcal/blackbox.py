@@ -4,7 +4,7 @@ import warnings
 import numpy as np
 from scipy.optimize import root_scalar, minimize_scalar
 
-from . import utils
+import riskcal
 
 
 def find_noise_multiplier_for_epsilon_delta(
@@ -130,7 +130,9 @@ class _ErrRatesAccountant:
         self.accountant_kwargs = accountant_kwargs
 
     def find_noise_multiplier(self, delta):
-        epsilon = utils.get_epsilon_for_err_rates(delta, self.alpha, self.beta)
+        epsilon = riskcal.conversions.get_epsilon_for_err_rates(
+            delta, self.alpha, self.beta
+        )
         try:
             mu = find_noise_multiplier_for_epsilon_delta(
                 epsilon=epsilon,
@@ -150,29 +152,6 @@ class _ErrRatesAccountant:
             )
             warnings.warn(e)
             return np.inf
-
-
-def _find_noise_profile(
-    err_rates_acct_obj: _ErrRatesAccountant,
-    max_delta: float,
-    sample_rate: float,
-    num_steps: float,
-    delta_error=0.01,
-    eps_error=0.001,
-    mu_max=100.0,
-    **accountant_kwargs,
-):
-    delta_vals = np.linspace(
-        delta_error, max_delta, int((max_delta - delta_error) / delta_error)
-    )
-    if len(delta_vals) == 0:
-        raise ValueError("Grid resolution too low. Try increasing delta_error.")
-
-    noise_vals = np.array([np.inf] * len(delta_vals))
-    for i, delta in enumerate(delta_vals):
-        noise_vals[i] = err_rates_acct_obj.find_noise_multiplier(delta)
-
-    return delta_vals, noise_vals
 
 
 @dataclass
@@ -243,24 +222,13 @@ def find_noise_multiplier_for_err_rates(
         calibration_delta = opt_result.x
         noise_multiplier = opt_result.fun
 
-    elif method == "grid_search":
-        delta_vals, noise_vals = _find_noise_profile(
-            err_rates_acct_obj=err_rates_acct_obj,
-            max_delta=max_delta,
-            sample_rate=sample_rate,
-            num_steps=num_steps,
-            delta_error=delta_error,
-            eps_error=eps_error,
-            mu_max=mu_max,
-        )
-
-        noise_multiplier = noise_vals.min()
-        calibration_delta = delta_vals[np.argmin(noise_vals)]
+    else:
+        raise ValueError(f"Unknown optimization method: {method}")
 
     return CalibrationResult(
         noise_multiplier=noise_multiplier,
         calibration_delta=calibration_delta,
-        calibration_epsilon=utils.get_epsilon_for_err_rates(
+        calibration_epsilon=riskcal.conversions.get_epsilon_for_err_rates(
             calibration_delta, alpha, beta
         ),
     )

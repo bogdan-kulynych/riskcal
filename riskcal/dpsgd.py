@@ -1,15 +1,18 @@
+from copy import deepcopy
 from functools import reduce
 from typing import Union
-
-import numpy as np
 from dp_accounting.pld import privacy_loss_distribution
 from scipy.optimize import root_scalar
+import numpy as np
+
+from riskcal import conversions
 
 
 class CTDAccountant:
     """
     Opacus-compatible Connect the Dots accountant.
     """
+
     def __init__(self):
         self.history = []
 
@@ -24,19 +27,30 @@ class CTDAccountant:
                 return
         self.history.append((noise_multiplier, sample_rate, 1))
 
-    def get_epsilon(self, *, delta, grid_step=1e-4, **kwargs):
+    def get_pld(self, grid_step=1e-4, use_connect_dots=True):
         plds = []
         for noise_multiplier, sample_rate, num_steps in self.history:
             pld = privacy_loss_distribution.from_gaussian_mechanism(
                 standard_deviation=noise_multiplier,
                 sampling_prob=sample_rate,
-                use_connect_dots=True,
+                use_connect_dots=use_connect_dots,
                 value_discretization_interval=grid_step,
             )
             plds.append(pld.self_compose(num_steps))
 
-        composed_pld = reduce(lambda a, b: a.compose(b), plds)
-        return composed_pld.get_epsilon_for_delta(delta)
+        return reduce(lambda a, b: a.compose(b), plds)
+
+    def get_epsilon(self, *, delta, **kwargs):
+        pld = self.get_pld(**kwargs)
+        return pld.get_epsilon_for_delta(delta)
+
+    def get_beta(self, *, alpha, **kwargs):
+        pld = self.get_pld(**kwargs)
+        return conversions.get_beta_from_pld(pld, alpha)
+
+    def get_advantage(self, **kwargs):
+        pld = self.get_pld(**kwargs)
+        return conversions.get_advantage_from_pld(pld)
 
     def __len__(self):
         total = 0
@@ -49,9 +63,7 @@ class CTDAccountant:
 
     # The following methods are copied from https://opacus.ai/api/_modules/opacus/accountants/accountant.html#IAccountant
     # to avoid the direct dependence on the opacus package.
-    def get_optimizer_hook_fn(
-        self, sample_rate: float
-    ):
+    def get_optimizer_hook_fn(self, sample_rate: float):
         """
         Returns a callback function which can be used to attach to DPOptimizer
         Args:
@@ -78,7 +90,7 @@ class CTDAccountant:
                 Default: None
         """
         if destination is None:
-            destination = OrderedDict()
+            destination = {}
         destination["history"] = deepcopy(self.history)
         destination["mechanism"] = self.__class__.mechanism
         return destination
@@ -117,167 +129,35 @@ class CTDAccountant:
         self.history = state_dict["history"]
 
 
-def _get_domain_and_pmf_from_pld(pld):
-    pld = pld.to_dense_pmf()
-    pmf = pld._probs
-    domain = (pld._lower_loss + np.arange(len(pld._probs))) * pld._discretization
-    return domain, pmf
-
-
-def _get_lower_loss_and_pmf_from_pld(pld):
-    pld = pld.to_dense_pmf()
-    pmf = pld._probs
-    lower_loss = pld._lower_loss
-    return lower_loss, pmf
-
-
-def get_beta_from_pld(
-    pld: privacy_loss_distribution.PrivacyLossDistribution,
-    alpha: Union[float, np.ndarray],
-):
-    lower_loss_Y, pmf_Y = _get_lower_loss_and_pmf_from_pld(
-        pld._pmf_remove
-    )
-    lower_loss_Z, pmf_Z = _get_lower_loss_and_pmf_from_pld(pld._pmf_add)
-
-    # Get the discrete points of alpha, beta
-    alphas = np.cumsum(pmf_Z) - pmf_Z
-    betas = np.cumsum(pmf_Y)
-
-    # Binary search to find the right index.
-    idx_Z = np.searchsorted(alphas, alpha) - 1
-
-    # Sanity check: did we find the correct index?
-    # Note that the alphas are in descending order.
-    assert np.all(alphas[idx_Z] < alpha) and np.all(alpha < alphas[idx_Z + 1])
-
-    # Find gamma.
-    gamma = (alpha - alphas[idx_Z]) / pmf_Z[idx_Z]
-
-    # Sanity check: gamma should be a positive and less than 1
-    assert np.all(0 < gamma) and np.all(gamma < 1)
-
-    # Get index in the Y world
-    idx_Y = -lower_loss_Z - lower_loss_Y - idx_Z
-
-    # Compute beta.
-    beta = betas[idx_Y] - gamma * pmf_Y[idx_Y]
-
-    # Sanity check: did we somehow go over to the next beta?
-    assert np.all(betas[idx_Y - 1] < beta) and np.all(beta < betas[idx_Y])
-
-    return beta
-
-
-def get_beta(
-    alpha: Union[float, np.ndarray],
+def get_advantage_for_dpsgd(
     noise_multiplier: float,
     sample_rate: float,
     num_steps: int,
     grid_step=1e-4,
 ):
-    """
-    Find FNR for a given FPR in DP-SGD.
-
-    Arguments:
-        alpha: Target FPR, either a single float or a numpy array
-        noise_multiplier: DP-SGD noise multiplier
-        sample_rate: Subsampled Gaussian sampling rate
-        num_steps: Number of steps
-        gird_step: Step size of the discretization grid
-    """
-    num_steps = int(num_steps)
-
     pld = privacy_loss_distribution.from_gaussian_mechanism(
         standard_deviation=noise_multiplier,
         sampling_prob=sample_rate,
         use_connect_dots=True,
         value_discretization_interval=grid_step,
-    )
-    pld = pld.self_compose(num_steps)
-    return get_beta_from_pld(pld, alpha=alpha)
+    ).self_compose(num_steps)
+    return conversions.get_advantage_from_pld(pld)
 
 
-def get_alpha(
-    beta: Union[float, np.ndarray],
+def get_beta_for_dpsgd(
     noise_multiplier: float,
     sample_rate: float,
     num_steps: int,
+    alpha: Union[float, np.ndarray],
     grid_step=1e-4,
 ):
-    """
-    Find FPR for a given FNR in DP-SGD.
-
-    Arguments:
-        beta: Target FPR, either a single float or a numpy array
-        noise_multiplier: DP-SGD noise multiplier
-        sample_rate: Subsampled Gaussian sampling rate
-        num_steps: Number of steps
-        gird_step: Step size of the discretization grid
-    """
-    num_steps = int(num_steps)
-
     pld = privacy_loss_distribution.from_gaussian_mechanism(
         standard_deviation=noise_multiplier,
         sampling_prob=sample_rate,
         use_connect_dots=True,
         value_discretization_interval=grid_step,
-    )
-    pld = pld.self_compose(num_steps)
-    return get_alpha_from_pld(pld, beta = beta)
-
-
-def get_alpha_from_pld(
-    pld: privacy_loss_distribution.PrivacyLossDistribution,
-    beta: Union[float, np.ndarray],
-):
-    lower_loss_Y, pmf_Y = _get_lower_loss_and_pmf_from_pld(
-        pld._pmf_remove
-    )
-    lower_loss_Z, pmf_Z = _get_lower_loss_and_pmf_from_pld(pld._pmf_add)
-
-    # get discrete points of alpha, beta
-    alphas = np.cumsum(pmf_Z) - pmf_Z
-    betas = np.cumsum(pmf_Y)
-
-    # numpy magic to get target index
-    idx_Y = np.searchsorted(betas, beta)
-
-    # sanity check: did we find the correct index?
-    assert np.all(betas[idx_Y - 1] <  beta) and np.all(beta < betas[idx_Y])
-
-    # find gamma
-    gamma = (betas[idx_Y] - beta) / pmf_Y[idx_Y]
-
-    # sanity check: gamma should be a positive and less than 1
-    assert np.all(0 < gamma) and np.all(gamma < 1)
-
-    # get index in the Y world
-    idx_Z = -lower_loss_Z - lower_loss_Y - idx_Y
-
-    # compute alpha
-    alpha = alphas[idx_Z] + gamma * pmf_Z[idx_Z]
-
-    # sanity check: did we somehow go over to the next alpha?
-    assert np.all(alphas[idx_Z] <  alpha) and np.all(alpha < alphas[idx_Z + 1])
-
-    # all sanity checks passed. Return alpha
-    return alpha
-    
-def get_advantage(
-    noise_multiplier: float,
-    sample_rate: float,
-    num_steps: int,
-    grid_step=1e-4,
-):
-    google_pld = privacy_loss_distribution.from_gaussian_mechanism(
-        standard_deviation=noise_multiplier,
-        sampling_prob=sample_rate,
-        use_connect_dots=True,
-        value_discretization_interval=grid_step,
-    )
-    composed_google_pld = google_pld.self_compose(num_steps)
-    return composed_google_pld.get_delta_for_epsilon(0)
+    ).self_compose(num_steps)
+    return conversions.get_beta_from_pld(pld, alpha)
 
 
 def find_noise_multiplier_for_err_rates(
@@ -303,11 +183,11 @@ def find_noise_multiplier_for_err_rates(
     """
 
     def _get_beta(mu):
-        return get_beta(
+        return get_beta_for_dpsgd(
             noise_multiplier=mu,
-            alpha=alpha,
             sample_rate=sample_rate,
             num_steps=num_steps,
+            alpha=alpha,
             grid_step=grid_step,
         )
 

@@ -1,6 +1,5 @@
 import numpy as np
 import pytest
-import itertools
 
 import riskcal
 from opacus import accountants
@@ -37,62 +36,12 @@ def test_adv_calibration_correctness(accountant, advantage, sample_rate, num_ste
     )
 
     acct_obj = accountant()
-    for step in range(num_steps):
+    for _ in range(num_steps):
         acct_obj.step(noise_multiplier=calibrated_mu, sample_rate=sample_rate)
 
     # Verify that mu is calibrated for (0, adv)-DP:
     assert acct_obj.get_epsilon(delta=advantage) == pytest.approx(
         0.0, abs=advantage_error
-    )
-
-
-@pytest.mark.parametrize(
-    "beta, sample_rate, num_steps, method",
-    [
-        # Gaussian mechanism:
-        (0.5, 1, 1, "brent"),
-        (0.5, 1, 1, "grid_search"),
-    ],
-)
-def test_err_rates_calibration_noise_profile(
-    accountant, beta, sample_rate, num_steps, method
-):
-    alpha = 0.01
-    classical_delta = 1e-5
-    delta_error = 0.001
-    eps_error = 0.01
-
-    assert alpha + beta < 1
-    max_delta = 1 - alpha - beta
-    err_rates_acct_obj = riskcal.blackbox._ErrRatesAccountant(
-        accountant=accountant,
-        alpha=alpha,
-        beta=beta,
-        sample_rate=sample_rate,
-        num_steps=num_steps,
-        eps_error=eps_error,
-        mu_max=100.0,
-    )
-
-    delta_vals, noise_vals = riskcal.blackbox._find_noise_profile(
-        err_rates_acct_obj,
-        max_delta=max_delta,
-        sample_rate=sample_rate,
-        num_steps=num_steps,
-        delta_error=delta_error,
-    )
-    calibration_result = riskcal.blackbox.find_noise_multiplier_for_err_rates(
-        accountant,
-        alpha=alpha,
-        beta=beta,
-        sample_rate=sample_rate,
-        num_steps=num_steps,
-        delta_error=delta_error,
-        mu_max=100.0,
-        method=method,
-    )
-    assert calibration_result.noise_multiplier == pytest.approx(
-        min(noise_vals), abs=eps_error
     )
 
 
@@ -132,7 +81,7 @@ def test_err_rates_calibration_correctness(
     calibrated_delta = calibration_result.calibration_delta
 
     acct_obj = accountant()
-    for step in range(num_steps):
+    for _ in range(num_steps):
         acct_obj.step(noise_multiplier=calibrated_mu, sample_rate=sample_rate)
 
     epsilon = acct_obj.get_epsilon(delta=calibrated_delta)
@@ -141,7 +90,7 @@ def test_err_rates_calibration_correctness(
     print(f"CHECK 1: {alpha=}, {beta=} // {epsilon=}, {expected_epsilon=}")
     assert epsilon == pytest.approx(expected_epsilon, abs=eps_error)
 
-    obtained_beta = riskcal.utils.get_err_rate_for_epsilon_delta(
+    obtained_beta = riskcal.conversions.get_beta_for_epsilon_delta(
         epsilon, calibrated_delta, alpha
     )
     print(f"CHECK 2: {alpha=}, {beta=} // {epsilon=}, {obtained_beta=}")
@@ -175,7 +124,7 @@ def test_err_rates_calibration_improvement(accountant, epsilon, sample_rate, num
     )
 
     # What is the FNR at alpha = 0.1 for the target epsilon?
-    beta = riskcal.utils.get_err_rate_for_epsilon_delta(epsilon, delta, alpha)
+    beta = riskcal.conversions.get_beta_for_epsilon_delta(epsilon, delta, alpha)
     # Let's calibrate directly for these alpha / beta:
     calibration_result = riskcal.blackbox.find_noise_multiplier_for_err_rates(
         accountant,
@@ -198,7 +147,7 @@ def test_err_rates_calibration_improvement(accountant, epsilon, sample_rate, num
         acct_obj.step(noise_multiplier=calibrated_mu, sample_rate=sample_rate)
     obtained_epsilon = acct_obj.get_epsilon(delta=calibrated_delta)
 
-    obtained_beta = riskcal.utils.get_err_rate_for_epsilon_delta(
+    obtained_beta = riskcal.conversions.get_beta_for_epsilon_delta(
         obtained_epsilon, calibrated_delta, alpha
     )
     assert beta == pytest.approx(obtained_beta, abs=delta_error)
@@ -208,11 +157,8 @@ def test_err_rates_calibration_improvement(accountant, epsilon, sample_rate, num
     "beta, method",
     [
         (0.25, "brent"),
-        (0.25, "grid_search"),
         (0.50, "brent"),
-        (0.50, "grid_search"),
         (0.75, "brent"),
-        (0.75, "grid_search"),
     ],
 )
 def test_generic_err_rates_calibration_worse_than_exact(beta, method):
