@@ -31,11 +31,12 @@ def plrvs_from_pld(
 def get_beta_from_pld(
     pld: privacy_loss_distribution.PrivacyLossDistribution,
     alpha: Union[float, np.ndarray],
+    alpha_grid_step: float = 1e-4,
 ) -> Union[float, np.ndarray]:
     """
     Get the trade-off curve for a given PLD object.
     """
-    return plrv.get_beta(plrvs_from_pld(pld), alpha)
+    return plrv.get_beta(plrvs_from_pld(pld), alpha, alpha_grid_step=alpha_grid_step)
 
 
 def get_advantage_from_pld(

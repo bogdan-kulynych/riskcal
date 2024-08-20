@@ -3,7 +3,6 @@ from typing import Union
 import numpy as np
 
 from scipy.spatial import ConvexHull
-from scipy.interpolate import interp1d
 
 
 @dataclass
@@ -30,7 +29,7 @@ def _get_alpha(
     idx_Y = np.searchsorted(betas, beta)
 
     # sanity check: did we find the correct index?
-    assert np.all(betas[idx_Y - 1] < beta) and np.all(beta < betas[idx_Y])
+    assert np.all(betas[idx_Y - 1] <= beta) and np.all(beta <= betas[idx_Y])
 
     # find gamma
     gamma = (betas[idx_Y] - beta) / plrvs.pmf_Y[idx_Y]
@@ -45,7 +44,7 @@ def _get_alpha(
     alpha = alphas[idx_Z] + gamma * plrvs.pmf_Z[idx_Z]
 
     # sanity check: did we somehow go over to the next alpha?
-    assert np.all(alphas[idx_Z] < alpha) and np.all(alpha < alphas[idx_Z + 1])
+    assert np.all(alphas[idx_Z] <= alpha) and np.all(alpha <= alphas[idx_Z + 1])
 
     # all sanity checks passed. Return alpha
     return alpha
@@ -64,7 +63,7 @@ def _get_beta(
 
     # Sanity check: did we find the correct index?
     # Note that the alphas are in descending order.
-    assert np.all(alphas[idx_Z] < alpha) and np.all(alpha < alphas[idx_Z + 1])
+    assert np.all(alphas[idx_Z] <= alpha) and np.all(alpha <= alphas[idx_Z + 1])
 
     # Find gamma.
     gamma = (alpha - alphas[idx_Z]) / plrvs.pmf_Z[idx_Z]
@@ -79,7 +78,7 @@ def _get_beta(
     beta = betas[idx_Y] - gamma * plrvs.pmf_Y[idx_Y]
 
     # Sanity check: did we somehow go over to the next beta?
-    assert np.all(betas[idx_Y - 1] < beta) and np.all(beta < betas[idx_Y])
+    assert np.all(betas[idx_Y - 1] <= beta) and np.all(beta <= betas[idx_Y])
 
     return beta
 
@@ -91,9 +90,6 @@ def _ensure_array(x):
 
 
 def _symmetrize_trade_off_curves(alpha, beta1, beta2):
-    if _ensure_array(alpha).shape == (1,):
-        return np.minimum(beta1, beta2)
-
     # Combine alphas and betas into a single array of points
     points = np.column_stack(
         (
@@ -107,30 +103,30 @@ def _symmetrize_trade_off_curves(alpha, beta1, beta2):
 
     # Get the vertices of the convex hull
     hull_vertices = points[hull.vertices]
-
-    # Create an interpolation function
-    f = interp1d(
-        hull_vertices[:, 0],
-        hull_vertices[:, 1],
-        kind="linear",
-        fill_value=1,
-    )
-
-    # Interpolate betas for the original alphas
-    beta = np.minimum(f(alpha), beta1, beta2)
-
-    return beta
+    idx = np.argsort(hull_vertices[:, 0])
+    return hull_vertices[idx, 0], hull_vertices[idx, 1]
 
 
 def get_beta(
     plrvs: PLRVs,
     alpha: Union[float, np.ndarray],
+    alpha_grid_step=1e-5,
 ) -> Union[float, np.ndarray]:
     """
     Get the trade-off curve from PLRVs.
 
     By Z we denote negative X, as that is the convention in dp_accounting.
     """
-    beta1 = _get_beta(plrvs, alpha)
-    beta2 = _get_alpha(plrvs, alpha)
-    return _symmetrize_trade_off_curves(alpha, beta1, beta2)
+    alpha_prime = np.linspace(
+        alpha_grid_step,
+        1.0 - alpha_grid_step,
+        int(np.ceil((1.0 - 2 * alpha_grid_step) / alpha_grid_step)),
+    )
+    beta1 = _get_beta(plrvs, alpha_prime)
+    beta2 = _get_alpha(plrvs, alpha_prime)
+
+    sym_alpha, sym_beta = _symmetrize_trade_off_curves(alpha_prime, beta1, beta2)
+
+    return 1 - np.interp(
+        _ensure_array(alpha), sym_alpha, 1 - sym_beta, left=0.0, right=1.0
+    )
