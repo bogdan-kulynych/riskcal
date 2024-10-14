@@ -53,13 +53,16 @@ plt.rcParams.update(
 
 import riskcal
 
-exp_metadata = pd.read_csv("../data/gpt2_metadata.csv", index_col=0).drop(columns="exp")
+exp_metadata = pd.read_csv("../data/gpt2_metadata.csv", index_col=0)
 
 exp_metadata = exp_metadata.sort_values(by="sigma")
 exp_metadata
 
 # Accuracy difference
 exp_metadata.test_acc.max() - exp_metadata.test_acc.min()
+
+# +
+standard_delta = 1e-5
 
 for i, row in exp_metadata.iterrows():
     acct = riskcal.dpsgd.CTDAccountant()
@@ -68,7 +71,6 @@ for i, row in exp_metadata.iterrows():
     print(acct.get_epsilon(delta=standard_delta))
 
 # +
-standard_delta = 1e-5
 alpha = np.array([0.01, 0.05, 0.1])
 
 plot_chunks = []
@@ -79,13 +81,13 @@ for i, row in tqdm.tqdm(list(exp_metadata.iterrows())):
         
     standard_eps = acct.get_epsilon(delta=standard_delta)
     standard_beta = riskcal.conversions.get_beta_for_epsilon_delta(
-        standard_eps, standard_delta, alpha=alphas
+        standard_eps, standard_delta, alpha=alpha
     )
     cal_beta = acct.get_beta(alpha=alpha)
 
     plot_chunks.append(
         pd.DataFrame(dict(
-            alpha=alphas,
+            alpha=alpha,
             standard_beta=standard_beta,
             standard_tpr=1 - standard_beta,
             standard_eps=standard_eps,
@@ -97,6 +99,7 @@ for i, row in tqdm.tqdm(list(exp_metadata.iterrows())):
     )
 
 # +
+y_label = r"Attack risk (TPR, $1 - \beta$)"
 g = sns.relplot(
     data=(
         pd.concat(plot_chunks, axis=0)
@@ -105,7 +108,7 @@ g = sns.relplot(
             id_vars=["alpha", "test_acc", "sigma"],
             value_vars=["cal_tpr", "standard_tpr"],
             var_name="Method",
-            value_name="Attack risk",
+            value_name=y_label,
         )
         .replace(
             {"cal_tpr": "Attack risk calibration", "standard_tpr": "Standard calibration"}
@@ -118,7 +121,7 @@ g = sns.relplot(
             }
         )
     ),
-    y="Attack risk",
+    y=y_label,
     x="Accuracy",
     hue="Method",
     hue_order=["Standard calibration", "Attack risk calibration"],
@@ -166,6 +169,65 @@ g = sns.relplot(
 
 plt.savefig(
     "../images/gpt2_err_rates_calibration_flipped.pgf",
+    bbox_inches="tight",
+    format="pgf",
+)
+
+# +
+alpha = np.linspace(0, 1, 200)
+plot_chunks = []
+
+for i, row in tqdm.tqdm(list(exp_metadata.iterrows())):
+    acct = riskcal.dpsgd.CTDAccountant()
+    for _ in range(int(row.steps)):
+        acct.step(noise_multiplier=row.sigma, sample_rate=row.q)
+
+    pld_beta = acct.get_beta(alpha=alpha)
+    dp_beta = riskcal.conversions.get_beta_for_epsilon_delta(acct.get_epsilon(delta=standard_delta), standard_delta, alpha)
+    plot_chunks.extend(
+        [
+            pd.DataFrame(dict(
+                alpha=alpha,
+                beta=dp_beta,
+                acc=row.test_acc,
+                sigma=row.sigma,
+                method=r"$(\varepsilon, \delta)$-DP ",
+            )),
+            pd.DataFrame(dict(
+                alpha=alpha,
+                beta=pld_beta,
+                acc=row.test_acc,
+                sigma=row.sigma,
+                method="Ours (Algorithm 1)",
+            ))
+        ]
+    )
+
+# +
+sns.relplot(
+    data=(
+        pd.concat(plot_chunks, axis=0)
+        .query("0.55 < acc < 0.705")
+        .assign(acc=lambda df: df.acc.round(2))
+        .rename(columns={
+            "acc": "Test acc.",
+            "alpha": r"Attack FPR, $\alpha$",
+            "beta": r"Attack FNR, $\beta$",
+            "method": "Method",
+        })
+    ),
+    x= r"Attack FPR, $\alpha$",
+    y= r"Attack FNR, $\beta$",
+    hue="Method",
+    col="Test acc.",
+    kind="line",
+)
+
+plt.xlim(0, 1)
+plt.ylim(0, 1)
+
+plt.savefig(
+    "../images/gpt2_trade_off_curves.pgf",
     bbox_inches="tight",
     format="pgf",
 )

@@ -97,10 +97,6 @@ for i, row in tqdm.tqdm(list(exp_metadata.iterrows())):
     pld = get_pld(
         noise_multiplier=row.sigma, epochs=row.epochs, batch_size=row.batch_size
     )
-    rdp = get_rdp(
-        noise_multiplier=row.sigma, epochs=row.epochs, batch_size=row.batch_size
-    )
-
     standard_eps = pld.get_epsilon_for_delta(standard_delta)
     standard_beta = riskcal.conversions.get_beta_for_epsilon_delta(
         standard_eps, standard_delta, alpha=alpha
@@ -121,6 +117,7 @@ for i, row in tqdm.tqdm(list(exp_metadata.iterrows())):
     )
 
 # +
+y_label = r"Attack risk (TPR, $1 - \beta$)"
 g = sns.relplot(
     data=(
         pd.concat(plot_chunks, axis=0)
@@ -128,7 +125,7 @@ g = sns.relplot(
             id_vars=["alpha", "test_acc", "sigma"],
             value_vars=["cal_tpr", "standard_tpr"],
             var_name="Method",
-            value_name="Attack risk",
+            value_name=y_label,
         )
         .replace(
             {"cal_tpr": "Attack risk calibration", "standard_tpr": "Standard calibration"}
@@ -142,7 +139,7 @@ g = sns.relplot(
         )
     ),
     x="Accuracy",
-    y="Attack risk",
+    y=y_label,
     hue="Method",
     hue_order=["Standard calibration", "Attack risk calibration"],
     col=r"$\alpha$",
@@ -157,6 +154,3 @@ for item, ax in g.axes_dict.items():
 plt.savefig(
     "../images/cifar10_err_rates_calibration.pgf", bbox_inches="tight", format="pgf"
 )
-# -
-
-
