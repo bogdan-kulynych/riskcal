@@ -99,7 +99,7 @@ def get_beta_using_method(noise_multiplier, alpha, method, mechanism):
         )
         
     if method == "riskcal":
-        return riskcal.conversions.get_beta_from_pld(pld, alpha=alpha)
+        return riskcal.conversions.get_beta_from_pld(pld, alpha=alpha).squeeze()
     else:
         epsilon = pld.get_epsilon_for_delta(delta)
         return riskcal.conversions.get_beta_for_epsilon_delta(epsilon=epsilon, delta=delta, alpha=alpha)
@@ -107,7 +107,7 @@ def get_beta_using_method(noise_multiplier, alpha, method, mechanism):
 for alpha, noise_multiplier in tqdm.tqdm(list(itertools.product(alphas, noise_multipliers))):
     for mechanism, method in itertools.product(mechanisms, methods):
         beta = get_beta_using_method(noise_multiplier, alpha, method, mechanism)
-        print(f"{alpha=:2f} {beta=:2f} {noise_multiplier=:2f} {method=}")
+        print(f"{alpha=:2f} {beta=:2f}: {noise_multiplier:=2f} {method=}")
         
         for rep in range(num_measurements):
             errs = []
@@ -130,6 +130,7 @@ for alpha, noise_multiplier in tqdm.tqdm(list(itertools.product(alphas, noise_mu
             ))
 
 # +
+risk_label = r"Attack TPR, $1 - \beta$"
 sns.relplot(
     data=(
         pd.DataFrame(data_chunks)
@@ -142,7 +143,7 @@ sns.relplot(
         .rename(
             columns={
                 "alpha": r"$\alpha$",
-                "tpr": r"Attack risk",
+                "tpr": risk_label,
                 "err": "$L_1$ error",
                 "noise_multiplier": "Noise scale",
                 "method": "Method",
@@ -151,7 +152,7 @@ sns.relplot(
         )
     ),
     col=r"$\alpha$",
-    x="Attack risk",
+    x=risk_label,
     y="$L_1$ error",
     hue="Method",
     # row="Mechanism",
@@ -160,4 +161,6 @@ sns.relplot(
 )
 
 # plt.yscale("log")
+plt.xlim(0, 1)
+plt.ylim(0, 4.5)
 plt.savefig("../images/histogram_err_rates_calibration.pgf", bbox_inches="tight", format="pgf")

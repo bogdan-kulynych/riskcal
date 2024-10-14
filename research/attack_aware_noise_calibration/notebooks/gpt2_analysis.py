@@ -116,13 +116,13 @@ g = sns.relplot(
         .rename(
             columns={
                 "alpha": r"$\alpha$",
-                "test_acc": "Accuracy",
+                "test_acc": "Task accuracy",
                 "sigma": "Noise scale",
             }
         )
     ),
     y=y_label,
-    x="Accuracy",
+    x="Task accuracy",
     hue="Method",
     hue_order=["Standard calibration", "Attack risk calibration"],
     col=r"$\alpha$",
@@ -130,7 +130,10 @@ g = sns.relplot(
     marker="o",
 )
 
-# plt.xlim(0, 1.0)
+plt.ylim(0, 1.0)
+
+g.axes[0, 0].set_xlabel("")
+g.axes[0, 2].set_xlabel("")
 
 plt.savefig(
     "../images/gpt2_err_rates_calibration.pgf", bbox_inches="tight", format="pgf"
@@ -210,7 +213,7 @@ sns.relplot(
         .query("0.55 < acc < 0.705")
         .assign(acc=lambda df: df.acc.round(2))
         .rename(columns={
-            "acc": "Test acc.",
+            "acc": "Task accuracy",
             "alpha": r"Attack FPR, $\alpha$",
             "beta": r"Attack FNR, $\beta$",
             "method": "Method",
@@ -219,7 +222,7 @@ sns.relplot(
     x= r"Attack FPR, $\alpha$",
     y= r"Attack FNR, $\beta$",
     hue="Method",
-    col="Test acc.",
+    col="Task accuracy",
     kind="line",
 )
 

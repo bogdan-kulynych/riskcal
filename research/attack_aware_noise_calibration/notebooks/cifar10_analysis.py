@@ -133,12 +133,12 @@ g = sns.relplot(
         .rename(
             columns={
                 "alpha": r"$\alpha$",
-                "test_acc": "Accuracy",
+                "test_acc": "Task accuracy",
                 "sigma": "Noise scale",
             }
         )
     ),
-    x="Accuracy",
+    x="Task accuracy",
     y=y_label,
     hue="Method",
     hue_order=["Standard calibration", "Attack risk calibration"],
@@ -146,6 +146,11 @@ g = sns.relplot(
     kind="line",
     marker="o",
 )
+
+plt.ylim(0, 1.0)
+
+g.axes[0, 0].set_xlabel("")
+g.axes[0, 2].set_xlabel("")
 
 for item, ax in g.axes_dict.items():
     ax.set_title("")
